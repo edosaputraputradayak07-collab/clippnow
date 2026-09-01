@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "ClippNow",
+    "slug": "clippnow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "clippnow",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.clippnow.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.clippnow.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#111827"
+      }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ClippNow needs access to your videos so you can create clips.",
+          "cameraPermission": "ClippNow needs camera access when you choose to record a clip.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow ClippNow to securely access your saved session."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ]
+    ]
+  }
+}
