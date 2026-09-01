@@ -13,7 +13,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { supabase } from './src/supabase';
-import { createProject, getProject, getSignedOutput, listProjects, startRender, type MobileProject } from './src/api';
+import { createProject, getSignedOutput, listProjects, startRender, type MobileProject } from './src/api';
+import { uploadVideo } from './src/upload';
 
 type Format = '9:16' | '1:1' | '16:9';
 
@@ -25,6 +26,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [projects, setProjects] = useState<MobileProject[]>([]);
   const [selectedFormat, setSelectedFormat] = useState<Format>('9:16');
   const [projectName, setProjectName] = useState('');
@@ -103,28 +105,18 @@ export default function App() {
   async function uploadAndCreateProject() {
     if (!selectedVideo?.uri) return;
     setBusy(true);
-    setStatus('Mengunggah video...');
+    setUploadProgress(0);
+    setStatus('Mengunggah video 0%...');
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) throw new Error('Sesi login tidak ditemukan.');
-
-      const response = await fetch(selectedVideo.uri);
-      const body = await response.arrayBuffer();
-      const extension = (selectedVideo.fileName?.split('.').pop() ?? 'mp4').toLowerCase();
-      const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from('clippnow-videos')
-        .upload(path, body, {
-          contentType: selectedVideo.mimeType ?? 'video/mp4',
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
+      const path = await uploadVideo(selectedVideo, (percent) => {
+        setUploadProgress(percent);
+        setStatus(`Mengunggah video ${percent}%...`);
+      });
 
       setStatus('Membuat project...');
       await createProject({
         name: projectName.trim() || 'Untitled clip',
-        original_filename: selectedVideo.fileName ?? `clip.${extension}`,
+        original_filename: selectedVideo.fileName ?? 'clip.mp4',
         source_path: path,
         format: selectedFormat,
         start_seconds: 0,
@@ -132,6 +124,7 @@ export default function App() {
       });
       setSelectedVideo(null);
       setProjectName('');
+      setUploadProgress(100);
       setStatus('Project berhasil dibuat.');
       await refreshProjects();
     } catch (error) {
@@ -201,6 +194,7 @@ export default function App() {
           <TextInput value={projectName} onChangeText={setProjectName} placeholder="Nama project" placeholderTextColor="#6b7280" style={styles.input} />
           <Text style={styles.label}>Format</Text>
           <View style={styles.formatRow}>{formats.map((format) => <Pressable key={format} onPress={() => setSelectedFormat(format)} style={[styles.format, selectedFormat === format && styles.formatActive]}><Text style={[styles.formatText, selectedFormat === format && styles.formatTextActive]}>{format}</Text></Pressable>)}</View>
+          {busy && uploadProgress > 0 && uploadProgress < 100 && <View style={styles.progressTrack}><View style={[styles.progressBar, { width: `${uploadProgress}%` }]} /></View>}
           <Pressable disabled={busy || !selectedVideo} onPress={uploadAndCreateProject} style={[styles.primary, (!selectedVideo || busy) && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Memproses...' : 'Upload & buat project'}</Text></Pressable>
         </View>
 
@@ -248,6 +242,8 @@ const styles = StyleSheet.create({
   link: { color: '#2563eb', fontWeight: '700' },
   status: { color: '#475569', textAlign: 'center' },
   muted: { color: '#64748b' },
+  progressTrack: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden' },
+  progressBar: { height: '100%', backgroundColor: '#111827' },
   project: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
   projectTitle: { fontWeight: '800', color: '#111827' },
   smallButton: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
