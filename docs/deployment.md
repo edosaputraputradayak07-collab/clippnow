@@ -7,7 +7,7 @@ The web application is deployed from `main` to the Vercel project `clippnoww`.
 - Production domain: `https://clippnoww.vercel.app`
 - Production environment must contain the Supabase URL, publishable key, server secret, and payment secrets required by the existing web flows.
 - For AI subtitle and viral editing, configure `OPENAI_API_KEY` as a **server-only** environment variable. Never expose it in `NEXT_PUBLIC_*` variables or client bundles.
-- The AI endpoint uses OpenAI speech-to-text and requests word/segment timestamps for dynamic subtitle rendering. citeturn2search0
+- The AI endpoint requests speech transcription with word/segment timestamps for dynamic subtitle rendering.
 - Never place `SUPABASE_SECRET_KEY`, `OPENAI_API_KEY`, or payment secrets in client bundles.
 
 ## AI Viral Studio
@@ -20,7 +20,7 @@ The Creator Studio now supports an opt-in viral editing pass:
 4. ClippNow transcribes speech, calculates a viral score, stores the edit plan, and generates timed ASS subtitles.
 5. Render uses the stored plan to burn subtitles and apply the selected visual effects.
 
-The existing private Supabase Storage bucket remains the source of truth for uploaded media. Large mobile uploads should continue using TUS/resumable uploads. citeturn0search0
+The existing private Supabase Storage bucket remains the source of truth for uploaded media. Large mobile uploads should continue using TUS/resumable uploads.
 
 ## Mobile
 
