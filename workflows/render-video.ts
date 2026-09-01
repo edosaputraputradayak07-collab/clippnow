@@ -1,9 +1,4 @@
-import { processJob } from '@/worker/render-worker';
-
-async function runRenderStep(jobId: string) {
-  'use step';
-  await processJob(jobId);
-}
+import { runRenderStep } from './render-video-step';
 
 export async function startRenderWorkflow(jobId: string) {
   'use workflow';
