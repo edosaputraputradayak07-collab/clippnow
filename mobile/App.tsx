@@ -13,11 +13,10 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { supabase } from './src/supabase';
-import { createProject, getSignedOutput, listProjects, startRender, type MobileProject } from './src/api';
+import { createProject, deleteAccount, getSignedOutput, listProjects, startRender, type MobileProject } from './src/api';
 import { uploadVideo } from './src/upload';
 
 type Format = '9:16' | '1:1' | '16:9';
-
 const formats: Format[] = ['9:16', '1:1', '16:9'];
 
 export default function App() {
@@ -55,10 +54,7 @@ export default function App() {
     refreshProjects();
   }, [userEmail]);
 
-  const selectedDuration = useMemo(() => {
-    if (!selectedVideo?.duration) return 60;
-    return Math.max(0.1, selectedVideo.duration / 1000);
-  }, [selectedVideo]);
+  const selectedDuration = useMemo(() => Math.max(0.1, (selectedVideo?.duration ?? 60000) / 1000), [selectedVideo]);
 
   async function refreshProjects() {
     try {
@@ -77,9 +73,7 @@ export default function App() {
         ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
         : await supabase.auth.signUp({ email: email.trim(), password });
       if (result.error) throw result.error;
-      if (mode === 'signup' && !result.data.session) {
-        setStatus('Akun dibuat. Cek email untuk konfirmasi jika diminta.');
-      }
+      if (mode === 'signup' && !result.data.session) setStatus('Akun dibuat. Cek email untuk konfirmasi jika diminta.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Autentikasi gagal.');
     } finally {
@@ -112,7 +106,6 @@ export default function App() {
         setUploadProgress(percent);
         setStatus(`Mengunggah video ${percent}%...`);
       });
-
       setStatus('Membuat project...');
       await createProject({
         name: projectName.trim() || 'Untitled clip',
@@ -150,19 +143,40 @@ export default function App() {
   async function shareOutput(projectId: string) {
     try {
       const { url } = await getSignedOutput(projectId);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(url);
-      } else {
-        Alert.alert('Video siap', url);
-      }
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(url);
+      else Alert.alert('Video siap', url);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Output belum tersedia.');
     }
   }
 
-  if (!sessionReady) {
-    return <SafeAreaView style={styles.center}><ActivityIndicator /></SafeAreaView>;
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Hapus akun?',
+      'Akun, project, job, dan video kamu akan dihapus permanen. Data transaksi pembayaran akan dipertahankan tanpa keterkaitan ke akun.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Hapus permanen', style: 'destructive', onPress: deleteMyAccount },
+      ],
+    );
   }
+
+  async function deleteMyAccount() {
+    setBusy(true);
+    setStatus('Menghapus akun...');
+    try {
+      await deleteAccount();
+      await supabase.auth.signOut();
+      setProjects([]);
+      setStatus('Akun berhasil dihapus.');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Gagal menghapus akun.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!sessionReady) return <SafeAreaView style={styles.center}><ActivityIndicator /></SafeAreaView>;
 
   if (!userEmail) {
     return (
@@ -209,6 +223,12 @@ export default function App() {
             </View>
           ))}
         </View>
+
+        <View style={styles.dangerCard}>
+          <Text style={styles.sectionTitle}>Akun</Text>
+          <Text style={styles.muted}>Penghapusan akun bersifat permanen.</Text>
+          <Pressable disabled={busy} onPress={confirmDeleteAccount} style={styles.dangerButton}><Text style={styles.dangerText}>Hapus akun permanen</Text></Pressable>
+        </View>
         {!!status && <Text style={styles.status}>{status}</Text>}
       </ScrollView>
     </SafeAreaView>
@@ -224,6 +244,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#6b7280', marginTop: 2 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   card: { backgroundColor: '#fff', borderRadius: 20, padding: 18, gap: 12, elevation: 1 },
+  dangerCard: { backgroundColor: '#fff', borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: '#fecaca' },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: '#111827' },
   input: { backgroundColor: '#f1f5f9', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#111827' },
   picker: { borderWidth: 1, borderStyle: 'dashed', borderColor: '#94a3b8', borderRadius: 14, padding: 20, alignItems: 'center' },
@@ -248,4 +269,6 @@ const styles = StyleSheet.create({
   projectTitle: { fontWeight: '800', color: '#111827' },
   smallButton: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
   smallButtonText: { color: '#fff', fontWeight: '700' },
+  dangerButton: { borderWidth: 1, borderColor: '#ef4444', borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
+  dangerText: { color: '#dc2626', fontWeight: '800' },
 });
