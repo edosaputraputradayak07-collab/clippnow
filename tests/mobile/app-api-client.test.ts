@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMobileRequest } from '../../mobile/src/api';
+import { buildMobileRequest } from '../../mobile/src/request';
 
 describe('mobile API client contract', () => {
   it('builds bearer-authenticated requests without putting tokens in URLs', () => {
