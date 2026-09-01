@@ -21,7 +21,7 @@ export async function uploadVideo(asset: ImagePickerAsset, onProgress?: (percent
 
   const extension = (asset.fileName?.split('.').pop() ?? 'mp4').toLowerCase();
   const path = `${userData.user.id}/${crypto.randomUUID()}.${extension}`;
-  const file = { uri: asset.uri, type: asset.mimeType ?? 'video/mp4', name: asset.fileName ?? `clip.${extension}` };
+  const file = { uri: asset.uri, type: asset.mimeType ?? 'video/mp4', name: asset.fileName ?? `clip.${extension}` } as unknown as Blob;
   const endpoint = `https://${getProjectRef()}.storage.supabase.co/storage/v1/upload/resumable`;
 
   await new Promise<void>((resolve, reject) => {
