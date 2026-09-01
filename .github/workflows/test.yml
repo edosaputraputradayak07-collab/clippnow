@@ -21,6 +21,8 @@ jobs:
         run: npm test -- --run
       - name: Typecheck
         run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
 
   mobile:
     runs-on: ubuntu-latest
