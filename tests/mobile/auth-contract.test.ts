@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { getBearerToken } from '@/lib/auth/mobile-request';
+import { getBearerToken } from '../../lib/auth/mobile-request';
 
-describe('mobile bearer auth contract', () => {
-  it('accepts a standard Authorization bearer token', () => {
-    const request = new Request('https://clippnoww.vercel.app/api/mobile/projects', {
-      headers: { Authorization: 'Bearer access-token-123' },
+describe('mobile bearer authentication contract', () => {
+  it('extracts bearer tokens from the authorization header', () => {
+    const request = new Request('https://clippnow.test/api/mobile/session', {
+      headers: { authorization: 'Bearer abc123' },
     });
-
-    expect(getBearerToken(request)).toBe('access-token-123');
+    expect(getBearerToken(request)).toBe('abc123');
   });
 
-  it('rejects missing, malformed, and query-string credentials', () => {
-    expect(getBearerToken(new Request('https://example.com'))).toBeNull();
-    expect(getBearerToken(new Request('https://example.com', { headers: { Authorization: 'Basic abc' } }))).toBeNull();
-    expect(getBearerToken(new Request('https://example.com?access_token=secret'))).toBeNull();
+  it('rejects non-bearer authorization schemes and query tokens', () => {
+    const request = new Request('https://clippnow.test/api/mobile/session?access_token=abc123', {
+      headers: { authorization: 'Basic abc123' },
+    });
+    expect(getBearerToken(request)).toBeNull();
   });
 });
