@@ -9,15 +9,18 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 120) : 'Untitled clip';
   const format = body.format;
+  const sourcePath = typeof body.source_path === 'string' && body.source_path.startsWith(`${user.id}/`) ? body.source_path : null;
   if (!['9:16', '1:1', '16:9'].includes(format)) return NextResponse.json({ error: 'Format tidak valid.' }, { status: 400 });
+  if (!sourcePath) return NextResponse.json({ error: 'Source video tidak valid.' }, { status: 400 });
 
   const { data: project, error: projectError } = await supabase.from('projects').insert({
     user_id: user.id,
     name,
     original_filename: typeof body.original_filename === 'string' ? body.original_filename.slice(0, 255) : null,
-    start_seconds: Number(body.start_seconds) || 0,
-    end_seconds: Number.isFinite(Number(body.end_seconds)) ? Number(body.end_seconds) : null,
+    start_seconds: Math.max(0, Number(body.start_seconds) || 0),
+    end_seconds: Number.isFinite(Number(body.end_seconds)) ? Math.max(0, Number(body.end_seconds)) : null,
     format,
+    source_path: sourcePath,
     status: 'queued',
   }).select('id').single();
 
