@@ -43,10 +43,12 @@ Supabase Auth manages sign-in, refresh, and logout. Session data is persisted th
 ## Video workflow
 
 1. Pick a video from the device library.
-2. Upload it into the private `clippnow-videos` bucket under the authenticated user's ID.
+2. Upload it into the private `clippnow-videos` bucket under the authenticated user's ID using Supabase TUS resumable upload with 6 MB chunks.
 3. Create a project through `/api/projects`.
 4. Start rendering through `/api/projects/:id/render`.
-5. Poll `/api/mobile/projects` for render progress.
+5. Refresh `/api/mobile/projects` for render progress.
 6. Request a short-lived signed output URL when rendering completes.
 
-Large-video resumable upload is the next hardening step before store release; Supabase recommends TUS resumable uploads for files over 6 MB.
+## Account deletion
+
+The app exposes a permanent account deletion action. The server authenticates the bearer session, removes the user's Storage objects through the Storage API, deletes the Auth user with the server-only admin client, and relies on database foreign-key cascades for user-owned application data. Payment records are retained with the user link nulled for transaction-history purposes.
