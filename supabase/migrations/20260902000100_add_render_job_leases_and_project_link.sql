@@ -8,61 +8,14 @@ alter table public.jobs add column if not exists failed_at timestamptz;
 alter table public.jobs add column if not exists output_path text;
 alter table public.jobs add column if not exists error_code text;
 alter table public.jobs add column if not exists last_heartbeat_at timestamptz;
-
 alter table public.jobs add constraint jobs_progress_range check (progress between 0 and 100);
 alter table public.jobs add constraint jobs_attempts_nonnegative check (attempts >= 0);
 create unique index if not exists jobs_project_id_uidx on public.jobs(project_id) where project_id is not null;
 create index if not exists jobs_queue_idx on public.jobs(status, created_at);
 create index if not exists jobs_lease_idx on public.jobs(status, lease_expires_at);
-
-create or replace function public.claim_clippnow_job(p_job_id uuid, p_worker_id text, p_lease_seconds integer default 900)
-returns public.jobs
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare v_job public.jobs;
-begin
-  if p_worker_id is null or length(trim(p_worker_id)) < 8 or length(p_worker_id) > 128 then raise exception 'invalid_worker_id'; end if;
-  if p_lease_seconds < 60 or p_lease_seconds > 3600 then raise exception 'invalid_lease'; end if;
-  update public.jobs
-  set status='processing', attempts=attempts+1, worker_id=p_worker_id,
-      lease_expires_at=now() + make_interval(secs => p_lease_seconds),
-      started_at=coalesce(started_at, now()), last_heartbeat_at=now(), updated_at=now()
-  where id=p_job_id and (status='queued' or (status='processing' and lease_expires_at is not null and lease_expires_at < now()));
-  if not found then raise exception 'job_not_claimable'; end if;
-  select * into v_job from public.jobs where id=p_job_id;
-  return v_job;
-end;
-$$;
-
-create or replace function public.finalize_clippnow_job(p_job_id uuid, p_worker_id text, p_status text, p_progress integer, p_output_path text default null, p_error_code text default null, p_error_message text default null)
-returns public.jobs
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare v_job public.jobs;
-begin
-  if p_status not in ('completed','failed') then raise exception 'invalid_final_status'; end if;
-  if p_progress < 0 or p_progress > 100 then raise exception 'invalid_progress'; end if;
-  update public.jobs
-  set status=p_status,
-      progress=case when p_status='completed' then 100 else greatest(progress,p_progress) end,
-      output_path=case when p_status='completed' then p_output_path else null end,
-      error_code=case when p_status='failed' then p_error_code else null end,
-      error_message=case when p_status='failed' then left(p_error_message,1000) else null end,
-      completed_at=case when p_status='completed' then now() else null end,
-      failed_at=case when p_status='failed' then now() else null end,
-      lease_expires_at=null, last_heartbeat_at=now(), updated_at=now()
-  where id=p_job_id and status='processing' and worker_id=p_worker_id;
-  if not found then raise exception 'job_not_owned_or_finalized'; end if;
-  select * into v_job from public.jobs where id=p_job_id;
-  return v_job;
-end;
-$$;
-
-revoke all on function public.claim_clippnow_job(uuid,text,integer) from public, anon, authenticated;
-revoke all on function public.finalize_clippnow_job(uuid,text,text,integer,text,text,text) from public, anon, authenticated;
+create or replace function public.claim_clippnow_job(p_job_id uuid,p_worker_id text,p_lease_seconds integer default 900) returns public.jobs language plpgsql security definer set search_path=public,pg_temp as $$ declare v_job public.jobs; begin if p_worker_id is null or length(trim(p_worker_id))<8 or length(p_worker_id)>128 then raise exception 'invalid_worker_id'; end if; if p_lease_seconds<60 or p_lease_seconds>3600 then raise exception 'invalid_lease'; end if; update public.jobs set status='processing',attempts=attempts+1,worker_id=p_worker_id,lease_expires_at=now()+make_interval(secs=>p_lease_seconds),started_at=coalesce(started_at,now()),last_heartbeat_at=now(),updated_at=now() where id=p_job_id and (status='queued' or (status='processing' and lease_expires_at is not null and lease_expires_at<now())); if not found then raise exception 'job_not_claimable'; end if; select * into v_job from public.jobs where id=p_job_id; return v_job; end; $$;
+create or replace function public.finalize_clippnow_job(p_job_id uuid,p_worker_id text,p_status text,p_progress integer,p_output_path text default null,p_error_code text default null,p_error_message text default null) returns public.jobs language plpgsql security definer set search_path=public,pg_temp as $$ declare v_job public.jobs; begin if p_status not in ('completed','failed') then raise exception 'invalid_final_status'; end if; if p_progress<0 or p_progress>100 then raise exception 'invalid_progress'; end if; update public.jobs set status=p_status,progress=case when p_status='completed' then 100 else greatest(progress,p_progress) end,output_path=case when p_status='completed' then p_output_path else null end,error_code=case when p_status='failed' then p_error_code else null end,error_message=case when p_status='failed' then left(p_error_message,1000) else null end,completed_at=case when p_status='completed' then now() else null end,failed_at=case when p_status='failed' then now() else null end,lease_expires_at=null,last_heartbeat_at=now(),updated_at=now() where id=p_job_id and status='processing' and worker_id=p_worker_id; if not found then raise exception 'job_not_owned_or_finalized'; end if; select * into v_job from public.jobs where id=p_job_id; return v_job; end; $$;
+revoke all on function public.claim_clippnow_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.finalize_clippnow_job(uuid,text,text,integer,text,text,text) from public,anon,authenticated;
 grant execute on function public.claim_clippnow_job(uuid,text,integer) to service_role;
 grant execute on function public.finalize_clippnow_job(uuid,text,text,integer,text,text,text) to service_role;
