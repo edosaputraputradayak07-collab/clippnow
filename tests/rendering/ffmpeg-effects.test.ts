@@ -13,7 +13,8 @@ describe('viral render options', () => {
       effects: ['motion-zoom'],
     });
 
-    expect(args).toContain('subtitles=/tmp/captions.ass');
-    expect(args.join(' ')).toContain('zoompan');
+    const filterGraph = args.join(' ');
+    expect(filterGraph).toContain('subtitles=/tmp/captions.ass');
+    expect(filterGraph).toContain('zoompan');
   });
 });
