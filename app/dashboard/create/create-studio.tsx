@@ -2,6 +2,7 @@
 
 import type { ChangeEvent, DragEvent, SyntheticEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 type ClipFormat = '9:16' | '1:1' | '16:9';
 
@@ -15,11 +16,12 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   const [credits, setCredits] = useState(initialCredits);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!file) return setUrl('');
+    if (!file) { setUrl(''); return; }
     const next = URL.createObjectURL(file);
     setUrl(next);
     return () => URL.revokeObjectURL(next);
@@ -38,16 +40,30 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   }
 
   async function prepareClip() {
-    if (!file || !duration) return;
-    setError(''); setStatus('');
+    if (!file || !duration || credits < 1 || busy) return;
+    setBusy(true); setError(''); setStatus('Mengamankan video…');
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setError('Sesi login sudah berakhir.'); setBusy(false); return; }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const sourcePath = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from('clippnow-videos').upload(sourcePath, file, { contentType: file.type, upsert: false });
+    if (uploadError) { setError(`Upload gagal: ${uploadError.message}`); setBusy(false); return; }
+
+    setStatus('Membuat project dan mengunci 1 kredit…');
     const response = await fetch('/api/projects', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: file.name.replace(/\.[^.]+$/, ''), original_filename: file.name, start_seconds: start, end_seconds: end, format }),
+      body: JSON.stringify({ name: file.name.replace(/\.[^.]+$/, ''), original_filename: file.name, source_path: sourcePath, start_seconds: start, end_seconds: end, format }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) { setError(data.error ?? 'Project gagal dibuat.'); return; }
+    if (!response.ok) {
+      await supabase.storage.from('clippnow-videos').remove([sourcePath]);
+      setError(data.error ?? 'Project gagal dibuat.'); setBusy(false); return;
+    }
     setCredits(data.credits_remaining);
     setStatus(`Project ${data.project_id.slice(0, 8)} siap diantrikan. 1 kredit digunakan.`);
+    setBusy(false);
   }
 
   const minClip = Math.min(0.1, duration || 0.1);
@@ -66,7 +82,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
         <div className="grid gap-5 py-8 lg:grid-cols-[1.35fr_0.65fr]">
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.025] p-4 sm:p-5">
             <div className="mb-5 flex items-end justify-between gap-4"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">01 / Source</div><h1 className="mt-2 text-2xl font-black sm:text-3xl">Pilih video yang mau dipotong.</h1></div><a href="/dashboard" className="text-xs font-bold text-slate-600 hover:text-white">← Dashboard</a></div>
-            {!file ? <div role="button" tabIndex={0} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files?.[0]); }} className={`flex min-h-[420px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed p-8 text-center transition ${dragging ? 'border-cyan-300 bg-cyan-300/10' : 'border-white/10 bg-black/10 hover:border-cyan-300/40'}`}><input ref={inputRef} type="file" accept="video/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => selectFile(e.target.files?.[0])} /><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div><h2 className="mt-6 text-lg font-black">Drop video di sini</h2><p className="mt-2 text-sm text-slate-600">atau klik untuk memilih dari perangkat</p><span className="mt-5 rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-bold text-slate-500">MAX 500 MB • MP4 / MOV / WEBM / MKV</span></div> : <div><div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full object-contain" /></div><div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3"><div className="min-w-0"><div className="truncate text-sm font-bold">{file.name}</div><div className="mt-1 text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div></div><button type="button" onClick={() => { setFile(null); setError(''); }} className="shrink-0 text-xs font-bold text-slate-500 hover:text-white">Ganti video</button></div></div>}
+            {!file ? <div role="button" tabIndex={0} onClick={() => inputRef.current?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); selectFile(e.dataTransfer.files?.[0]); }} className={`flex min-h-[420px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed p-8 text-center transition ${dragging ? 'border-cyan-300 bg-cyan-300/10' : 'border-white/10 bg-black/10 hover:border-cyan-300/40'}`}><input ref={inputRef} type="file" accept="video/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => selectFile(e.target.files?.[0])} /><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div><h2 className="mt-6 text-lg font-black">Drop video di sini</h2><p className="mt-2 text-sm text-slate-600">atau klik untuk memilih dari perangkat</p><span className="mt-5 rounded-full border border-white/10 px-3 py-1.5 text-[10px] font-bold text-slate-500">MAX 500 MB • MP4 / MOV / WEBM / MKV</span></div> : <div><div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full object-contain" /></div><div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3"><div className="min-w-0"><div className="truncate text-sm font-bold">{file.name}</div><div className="mt-1 text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div></div><button type="button" onClick={() => { setFile(null); setError(''); setStatus(''); }} className="shrink-0 text-xs font-bold text-slate-500 hover:text-white">Ganti video</button></div></div>}
           </section>
 
           <aside className="rounded-[2rem] border border-white/10 bg-white/[0.025] p-5 sm:p-6">
@@ -78,8 +94,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             <div className="mt-5"><div className="mb-2 text-xs font-bold text-slate-500">Output format</div><div className="grid grid-cols-3 gap-2">{(['9:16','1:1','16:9'] as ClipFormat[]).map((item) => <button key={item} type="button" onClick={() => setFormat(item)} className={`rounded-xl border px-2 py-3 text-xs font-black ${format === item ? 'border-cyan-300 bg-cyan-300/10 text-cyan-200' : 'border-white/10 text-slate-600 hover:text-white'}`}><span className={`mx-auto mb-2 block border border-current ${item === '9:16' ? 'h-7 w-4' : item === '1:1' ? 'h-6 w-6' : 'h-4 w-7'}`} />{item}</button>)}</div></div>
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs font-semibold text-rose-300">{error}</div>}
             {status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs font-semibold text-emerald-300">{status}</div>}
-            <button type="button" disabled={!file || !duration || credits < 1} onClick={prepareClip} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{credits < 1 ? 'Beli kredit untuk lanjut' : 'Siapkan clip →'}</button>
-            <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">1 kredit digunakan saat project masuk antrean processing.</p>
+            <button type="button" disabled={!file || !duration || credits < 1 || busy} onClick={prepareClip} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{busy ? 'Menyiapkan…' : credits < 1 ? 'Beli kredit untuk lanjut' : 'Siapkan clip →'}</button>
+            <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">Video disimpan privat di storage akun kamu. 1 kredit digunakan saat project masuk antrean.</p>
           </aside>
         </div>
       </div>
