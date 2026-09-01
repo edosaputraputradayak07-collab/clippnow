@@ -1,6 +1,6 @@
 {
   "name": "clippnow",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,8 +15,11 @@
     "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
-    "@types/node": "^22.0.0"
+    "postcss": "^8.5.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5.0.0"
   }
 }

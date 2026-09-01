@@ -1,194 +1,33 @@
-'use client';
+import Link from 'next/link';
 
-import type { ChangeEvent, DragEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+const formats = [
+  { label: '9:16', name: 'Shorts / Reels / TikTok', className: 'h-16 w-9' },
+  { label: '1:1', name: 'Feed & social', className: 'h-14 w-14' },
+  { label: '16:9', name: 'YouTube & landscape', className: 'h-10 w-16' },
+];
 
-type ClipFormat = '9:16' | '1:1' | '16:9';
+const steps = [
+  ['01', 'Upload', 'Masukkan video panjang sampai 500 MB.'],
+  ['02', 'Pilih momen', 'Atur bagian video dan format yang kamu butuhkan.'],
+  ['03', 'Process & publish', 'Project diproses dan hasilnya siap dipakai.'],
+];
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState('');
-  const [fileSize, setFileSize] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [duration, setDuration] = useState(0);
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(0);
-  const [format, setFormat] = useState<ClipFormat>('9:16');
-  const [dragging, setDragging] = useState(false);
-  const [status, setStatus] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!file) {
-      setVideoUrl('');
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setVideoUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const handleFile = (nextFile?: File) => {
-    if (!nextFile || !nextFile.type.startsWith('video/')) return;
-    setFile(nextFile);
-    setFileName(nextFile.name);
-    setFileSize(formatSize(nextFile.size));
-    setStatus('');
-  };
-
-  const handleInput = (event: ChangeEvent<HTMLInputElement>) => {
-    handleFile(event.target.files?.[0]);
-  };
-
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setDragging(false);
-    handleFile(event.dataTransfer.files?.[0]);
-  };
-
-  const handleLoadedMetadata = (event: ChangeEvent<HTMLVideoElement>) => {
-    const nextDuration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
-    setDuration(nextDuration);
-    setStart(0);
-    setEnd(nextDuration);
-  };
-
-  const handleGenerate = () => {
-    if (!file || !duration) return;
-    setStatus(`Clip siap: ${formatTime(start)} – ${formatTime(end)} • ${format}`);
-  };
-
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white selection:bg-cyan-400 selection:text-slate-950">
-      <div className="pointer-events-none absolute -left-40 top-0 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-40 top-40 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-3xl" />
-
-      <section className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex items-center justify-between border-b border-white/10 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400 font-black text-slate-950 shadow-lg shadow-cyan-400/20">C</div>
-            <div>
-              <div className="text-xl font-black tracking-tight sm:text-2xl">Clipp<span className="text-cyan-400">Now</span></div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">AI Video Studio</p>
-            </div>
-          </div>
-          <div className="hidden items-center gap-3 text-sm text-slate-400 sm:flex">
-            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-cyan-300">✦ Beta</span>
-            <span>Fast • Simple • AI Ready</span>
-          </div>
-        </header>
-
-        <div className="flex flex-1 items-center justify-center py-10 sm:py-14">
-          <div className="w-full max-w-5xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.9)]" />
-              AI-powered video clipping
-            </div>
-
-            <h1 className="mx-auto max-w-4xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
-              Turn long videos into
-              <span className="block bg-gradient-to-r from-cyan-300 via-cyan-400 to-violet-400 bg-clip-text text-transparent">clips people want to watch.</span>
-            </h1>
-
-            <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-slate-400 sm:text-lg">
-              Upload video, preview langsung, pilih durasi clip dan format konten sebelum masuk ke tahap AI processing.
-            </p>
-
-            {!file ? (
-              <div className="mx-auto mt-9 max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.045] p-3 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-4">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => inputRef.current?.click()}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click();
-                  }}
-                  onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                  className={`group cursor-pointer rounded-[1.5rem] border-2 border-dashed px-6 py-12 transition-all ${dragging ? 'scale-[1.01] border-cyan-300 bg-cyan-400/10' : 'border-white/10 bg-black/10 hover:border-cyan-400/50 hover:bg-cyan-400/[0.04]'}`}
-                >
-                  <input ref={inputRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/*" className="hidden" onChange={handleInput} />
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/10 text-3xl ring-1 ring-cyan-400/20 transition group-hover:scale-105">🎬</div>
-                  <div className="mt-5 text-lg font-bold sm:text-xl">Drop your video here</div>
-                  <div className="mt-2 text-sm text-slate-500">atau klik untuk memilih file dari laptop</div>
-                  <div className="mt-5 inline-flex rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-400">MP4 • MOV • WebM</div>
-                </div>
-              </div>
-            ) : (
-              <div className="mx-auto mt-9 max-w-4xl rounded-[2rem] border border-white/10 bg-white/[0.045] p-4 text-left shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-5">
-                <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-                    <video src={videoUrl} controls className="aspect-video h-full w-full object-contain" onLoadedMetadata={handleLoadedMetadata} />
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-5">
-                    <div className="text-sm font-bold text-white">{fileName}</div>
-                    <div className="mt-1 text-xs text-slate-500">{fileSize} • {formatTime(duration)}</div>
-
-                    <div className="mt-6">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
-                        <span>Start</span><span>{formatTime(start)}</span>
-                      </div>
-                      <input aria-label="Clip start" type="range" min="0" max={Math.max(duration, 0)} step="0.1" value={start} onChange={(event) => setStart(Math.min(Number(event.target.value), end - 0.1))} className="mt-2 w-full accent-cyan-400" />
-                    </div>
-
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
-                        <span>End</span><span>{formatTime(end)}</span>
-                      </div>
-                      <input aria-label="Clip end" type="range" min="0.1" max={Math.max(duration, 0.1)} step="0.1" value={end} onChange={(event) => setEnd(Math.max(Number(event.target.value), start + 0.1))} className="mt-2 w-full accent-cyan-400" />
-                    </div>
-
-                    <div className="mt-6">
-                      <div className="mb-2 text-xs font-semibold text-slate-400">Format</div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(['9:16', '1:1', '16:9'] as ClipFormat[]).map((item) => (
-                          <button key={item} type="button" onClick={() => setFormat(item)} className={`rounded-xl border px-2 py-2 text-xs font-bold transition ${format === item ? 'border-cyan-400 bg-cyan-400/10 text-cyan-300' : 'border-white/10 bg-white/[0.03] text-slate-500 hover:border-white/20'}`}>{item}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={handleGenerate} className="mt-6 w-full rounded-xl bg-cyan-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-cyan-300">✨ Generate Clip</button>
-                    {status && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">{status}</div>}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mx-auto mt-8 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
-              <Feature icon="⚡" title="Fast workflow" text="Upload dan preview langsung." />
-              <Feature icon="✂️" title="Smart trim" text="Atur start dan end clip." />
-              <Feature icon="🤖" title="AI ready" text="Fondasi siap untuk AI processing." />
-            </div>
-          </div>
-        </div>
-
-        <footer className="border-t border-white/10 pt-5 text-center text-xs text-slate-600">ClippNow © 2026 · AI Video Clip Studio</footer>
-      </section>
+    <main className="min-h-screen overflow-hidden bg-[#05070d] text-white selection:bg-cyan-300 selection:text-slate-950">
+      <div className="pointer-events-none fixed inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:64px_64px]" />
+      <div className="pointer-events-none absolute -left-48 top-20 h-[32rem] w-[32rem] rounded-full bg-cyan-400/10 blur-[110px]" />
+      <div className="pointer-events-none absolute right-[-10rem] top-[22rem] h-[34rem] w-[34rem] rounded-full bg-violet-500/10 blur-[120px]" />
+      <nav className="relative mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
+        <Link href="/" className="flex items-center gap-3"><BrandMark /><span className="text-xl font-black tracking-tight">Clipp<span className="text-cyan-300">Now</span></span></Link>
+        <div className="hidden items-center gap-7 text-sm font-semibold text-slate-500 md:flex"><Link href="#how" className="transition hover:text-white">Cara kerja</Link><Link href="/pricing" className="transition hover:text-white">Harga</Link></div>
+        <div className="flex items-center gap-2"><Link href="/auth/login" className="rounded-xl px-3 py-2 text-xs font-black text-slate-400 hover:text-white sm:px-4">Masuk</Link><Link href="/auth/signup" className="rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200">Mulai gratis</Link></div>
+      </nav>
+      <section className="relative mx-auto max-w-7xl px-5 pb-16 pt-14 sm:px-8 sm:pb-24 sm:pt-20 lg:px-10"><div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]"><div><div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200"><span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,.9)]" /> Creator video engine</div><h1 className="mt-7 max-w-3xl text-5xl font-black leading-[0.96] tracking-[-0.04em] sm:text-7xl lg:text-[5.8rem]">Satu video.<span className="block text-slate-500">Banyak momen.</span><span className="block bg-gradient-to-r from-cyan-200 via-cyan-300 to-violet-300 bg-clip-text text-transparent">Lebih banyak konten.</span></h1><p className="mt-7 max-w-xl text-sm leading-7 text-slate-500 sm:text-base">ClippNow membantu creator mengubah video panjang menjadi project clip yang siap diproses untuk Shorts, Reels, TikTok, dan platform lainnya.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/auth/signup" className="rounded-2xl bg-cyan-300 px-6 py-4 text-center text-sm font-black text-slate-950 shadow-xl shadow-cyan-950/30 transition hover:-translate-y-0.5 hover:bg-cyan-200">Mulai dengan 1 kredit gratis →</Link><Link href="/pricing" className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-4 text-center text-sm font-black text-white transition hover:bg-white/[0.06]">Lihat paket</Link></div><div className="mt-7 flex flex-wrap gap-2 text-[10px] font-bold text-slate-600"><span className="rounded-full border border-white/10 px-3 py-1.5">500 MB / video</span><span className="rounded-full border border-white/10 px-3 py-1.5">9:16 · 1:1 · 16:9</span><span className="rounded-full border border-white/10 px-3 py-1.5">Storage privat</span></div></div><div className="relative mx-auto w-full max-w-xl"><div className="relative rounded-[2rem] border border-white/10 bg-white/[0.035] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-4"><div className="rounded-[1.5rem] border border-white/10 bg-[#090d16] p-4 sm:p-5"><div className="flex items-center justify-between border-b border-white/10 pb-4"><div><div className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-300">Creator studio</div><div className="mt-1 text-sm font-black">New project</div></div><div className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[9px] font-black text-cyan-200">3 credits</div></div><div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video bg-[radial-gradient(circle_at_35%_35%,rgba(34,211,238,.18),transparent_35%),radial-gradient(circle_at_70%_65%,rgba(139,92,246,.16),transparent_40%)] p-4"><div className="flex h-full items-end rounded-xl border border-white/10 bg-black/20 p-4"><div><div className="text-[9px] font-black uppercase tracking-widest text-cyan-200">Video timeline</div><div className="mt-2 h-1.5 w-44 rounded-full bg-white/10"><div className="h-full w-[62%] rounded-full bg-cyan-300" /></div></div></div></div></div><div className="mt-4 grid grid-cols-3 gap-2">{formats.map((format) => <div key={format.label} className="rounded-xl border border-white/10 bg-white/[0.025] p-3"><div className="flex h-20 items-center justify-center"><div className={`rounded-md border border-cyan-300/50 bg-cyan-300/[0.04] ${format.className}`} /></div><div className="mt-2 text-xs font-black">{format.label}</div><div className="mt-1 text-[9px] leading-4 text-slate-600">{format.name}</div></div>)}</div></div></div><div className="absolute -bottom-5 -left-3 rounded-2xl border border-emerald-300/20 bg-[#0a100f]/95 px-4 py-3 shadow-xl backdrop-blur-xl sm:-left-8"><div className="text-[9px] font-black uppercase tracking-widest text-slate-600">Workflow</div><div className="mt-1 text-xs font-black text-emerald-200">Upload → Trim → Process</div></div></div></div></section>
+      <section id="how" className="relative border-y border-white/10 bg-white/[0.018]"><div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10"><div className="max-w-xl"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Cara kerja</div><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Dibuat sederhana dari awal.</h2></div><div className="mt-9 grid gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 md:grid-cols-3">{steps.map(([number, title, text]) => <article key={number} className="bg-[#080b12] p-6 sm:p-8"><div className="text-xs font-black text-cyan-300">{number}</div><h3 className="mt-10 text-xl font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{text}</p></article>)}</div></div></section>
+      <section className="relative mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-10"><div className="rounded-[2rem] border border-cyan-300/15 bg-gradient-to-br from-cyan-300/[0.08] via-white/[0.02] to-violet-400/[0.06] p-7 sm:p-10"><div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Ready when you are</div><h2 className="mt-3 max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">Mulai dengan trial. Bayar hanya saat kamu butuh lebih banyak.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">Setiap akun baru mendapat 1 kredit trial. Paket berbayar menambah kredit sesuai kebutuhan.</p></div><Link href="/auth/signup" className="rounded-2xl bg-cyan-300 px-6 py-4 text-center text-sm font-black text-slate-950 transition hover:bg-cyan-200">Buat akun gratis →</Link></div></div></section>
+      <footer className="relative border-t border-white/10 px-5 py-7 sm:px-8 lg:px-10"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 text-xs text-slate-600 sm:flex-row"><span>ClippNow © 2026</span><span>Built for creators • Video in, content out.</span></div></footer>
     </main>
   );
 }
-
-function Feature({ icon, title, text }: { icon: string; title: string; text: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.06]">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-lg">{icon}</div>
-        <div><div className="font-bold">{title}</div><p className="mt-0.5 text-xs leading-5 text-slate-500">{text}</p></div>
-      </div>
-    </div>
-  );
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '00:00';
-  const minutes = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-}
+function BrandMark() { return <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30"><span className="absolute h-6 w-6 rounded-full border-[5px] border-slate-950" /><span className="absolute right-1.5 h-2.5 w-2.5 rotate-45 rounded-[2px] bg-cyan-300" /><span className="relative text-[9px] font-black">▶</span></span>; }

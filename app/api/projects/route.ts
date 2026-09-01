@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+const MIN_CLIP_SECONDS = 0.1;
+const MAX_CLIP_SECONDS = 60 * 10;
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -11,15 +14,21 @@ export async function POST(request: Request) {
   const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 120) : 'Untitled clip';
   const format = body.format;
   const sourcePath = typeof body.source_path === 'string' && body.source_path.startsWith(`${user.id}/`) ? body.source_path : null;
+  const start = Number(body.start_seconds);
+  const end = Number(body.end_seconds);
+
   if (!['9:16', '1:1', '16:9'].includes(format)) return NextResponse.json({ error: 'Format tidak valid.' }, { status: 400 });
   if (!sourcePath) return NextResponse.json({ error: 'Source video tidak valid.' }, { status: 400 });
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end - start < MIN_CLIP_SECONDS || end - start > MAX_CLIP_SECONDS) {
+    return NextResponse.json({ error: 'Durasi clip tidak valid. Pilih minimal 0,1 detik dan maksimal 10 menit.' }, { status: 400 });
+  }
 
   const { data: project, error: projectError } = await supabase.from('projects').insert({
     user_id: user.id,
     name,
     original_filename: typeof body.original_filename === 'string' ? body.original_filename.slice(0, 255) : null,
-    start_seconds: Math.max(0, Number(body.start_seconds) || 0),
-    end_seconds: Number.isFinite(Number(body.end_seconds)) ? Math.max(0, Number(body.end_seconds)) : null,
+    start_seconds: start,
+    end_seconds: end,
     format,
     source_path: sourcePath,
     status: 'queued',
