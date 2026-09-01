@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders() });
 
   const { id } = await params;
-  const { data: project, error } = await supabase.from('projects').select('id,name,status,format,start_seconds,end_seconds,output_path,created_at,updated_at').eq('id', id).eq('user_id', user.id).maybeSingle();
+  const { data: project, error } = await supabase.from('projects').select('id,name,status,format,start_seconds,end_seconds,output_path,created_at,updated_at,edit_mode,subtitle_style,viral_score').eq('id', id).eq('user_id', user.id).maybeSingle();
   if (error) return NextResponse.json({ error: 'Gagal mengambil project.' }, { status: 500, headers: noStoreHeaders() });
   if (!project) return NextResponse.json({ error: 'Project tidak ditemukan.' }, { status: 404, headers: noStoreHeaders() });
 
