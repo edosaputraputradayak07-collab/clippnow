@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
   if (!['9:16', '1:1', '16:9'].includes(format)) return NextResponse.json({ error: 'Format tidak valid.' }, { status: 400 });
   if (!sourcePath) return NextResponse.json({ error: 'Source video tidak valid.' }, { status: 400 });
 
+  const admin = createAdminClient();
   const { data: project, error: projectError } = await supabase.from('projects').insert({
     user_id: user.id,
     name,
@@ -26,12 +28,26 @@ export async function POST(request: Request) {
 
   if (projectError || !project) return NextResponse.json({ error: 'Gagal membuat project.' }, { status: 500 });
 
-  const { data: balance, error: creditError } = await supabase.rpc('reserve_clippnow_credit', { p_reference: project.id });
-  if (creditError) {
+  const { data: profile, error: creditError } = await admin.from('profiles').update({ credits: undefined }).eq('id', user.id).gt('credits', 0).select('credits').single();
+  if (creditError || !profile) {
     await supabase.from('projects').delete().eq('id', project.id);
-    const message = creditError.message.includes('insufficient_credits') ? 'Kredit kamu habis. Beli paket untuk melanjutkan.' : 'Gagal menggunakan kredit.';
-    return NextResponse.json({ error: message }, { status: creditError.message.includes('insufficient_credits') ? 402 : 500 });
+    return NextResponse.json({ error: 'Kredit kamu habis. Beli paket untuk melanjutkan.' }, { status: 402 });
   }
 
-  return NextResponse.json({ project_id: project.id, credits_remaining: balance });
+  const { data: current } = await admin.from('profiles').select('credits').eq('id', user.id).single();
+  const remaining = Math.max(0, (current?.credits ?? 1) - 1);
+  const { error: decrementError } = await admin.from('profiles').update({ credits: remaining, updated_at: new Date().toISOString() }).eq('id', user.id);
+  if (decrementError) {
+    await supabase.from('projects').delete().eq('id', project.id);
+    return NextResponse.json({ error: 'Gagal mengunci kredit.' }, { status: 500 });
+  }
+
+  const { error: transactionError } = await admin.from('credit_transactions').insert({ user_id: user.id, amount: -1, type: 'usage', reference_id: project.id, description: 'Clip processing credit' });
+  if (transactionError) {
+    await admin.from('profiles').update({ credits: remaining + 1, updated_at: new Date().toISOString() }).eq('id', user.id);
+    await supabase.from('projects').delete().eq('id', project.id);
+    return NextResponse.json({ error: 'Gagal mencatat penggunaan kredit.' }, { status: 500 });
+  }
+
+  return NextResponse.json({ project_id: project.id, credits_remaining: remaining });
 }
