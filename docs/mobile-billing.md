@@ -27,4 +27,4 @@ ClippNow's mobile app must use the store billing systems applicable to the user'
 5. Test with Apple Sandbox/TestFlight and Google Play internal testing.
 6. Only then enable paid products in production.
 
-`expo-iap` requires a development/production native build; Expo Go is not sufficient for IAP testing. citeturn0search1turn3view0
+`expo-iap` requires a development/production native build; Expo Go is not sufficient for IAP testing.
