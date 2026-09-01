@@ -15,10 +15,10 @@ export async function DELETE(request: Request) {
   const admin = createAdminClient();
   const prefix = mobileUser.user.id;
 
-  for (let offset = 0; ; offset += PAGE_SIZE) {
+  for (;;) {
     const { data: objects, error: listError } = await admin.storage
       .from(BUCKET)
-      .list(prefix, { limit: PAGE_SIZE, offset });
+      .list(prefix, { limit: PAGE_SIZE, offset: 0 });
 
     if (listError) {
       return NextResponse.json({ error: 'Gagal menyiapkan penghapusan file akun.' }, { status: 500, headers: noStoreHeaders() });
@@ -30,7 +30,6 @@ export async function DELETE(request: Request) {
     if (removeError) {
       return NextResponse.json({ error: 'Gagal menghapus file akun.' }, { status: 500, headers: noStoreHeaders() });
     }
-    if (objects.length < PAGE_SIZE) break;
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(mobileUser.user.id, false);
