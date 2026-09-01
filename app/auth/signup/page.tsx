@@ -23,7 +23,7 @@ export default function SignupPage() {
       options: { data: { full_name: name } },
     });
     if (signUpError) {
-      setError(signUpError.message);
+      setError('Pendaftaran gagal. Periksa email dan password lalu coba lagi.');
       setLoading(false);
       return;
     }
@@ -41,9 +41,9 @@ export default function SignupPage() {
           <h1 className="mt-3 text-3xl font-black tracking-tight">Buat akun ClippNow</h1>
           <p className="mt-3 text-sm leading-6 text-slate-500">Dapatkan 1 kredit trial untuk mencoba workflow pertama.</p>
           <form onSubmit={submit} className="mt-8 space-y-4">
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Nama</span><input required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Email</span><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Password</span><input required minLength={6} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Nama</span><input required autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Email</span><input required autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Password</span><input required autoComplete="new-password" minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
             {error && <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-300">{error}</p>}
             {message && <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">{message}</p>}
             <button disabled={loading} className="w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:opacity-50">{loading ? 'Membuat akun…' : 'Daftar gratis →'}</button>
