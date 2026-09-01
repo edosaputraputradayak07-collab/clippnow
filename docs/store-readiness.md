@@ -13,6 +13,8 @@
 - Public account deletion instructions at `/account-deletion`.
 - Android target/compile SDK 36 configuration.
 - EAS production build profiles.
+- `expo-iap` 5.4.1 dependency for native digital-goods billing preparation.
+- Native billing architecture documented in `docs/mobile-billing.md`.
 
 ## Still required before store submission
 
@@ -22,8 +24,9 @@
 4. Configure App Store Connect and Google Play Console metadata, screenshots, age rating/content declarations, privacy declarations, and support/contact details.
 5. For Apple, create the required App Store Connect app record and provide review credentials if the app requires login.
 6. For Google Play, complete developer verification and the applicable Data Safety / account deletion declarations.
-7. Decide the production billing model for native digital credits. Native purchases of digital goods must follow Apple and Google billing rules; the existing web Midtrans flow should not be copied into native purchase UI without policy review.
-8. Run physical-device smoke tests on a recent iPhone/iPad and Android device, including large video upload, interrupted upload recovery, render polling, signed output sharing, logout, and account deletion.
+7. Finish native purchase UI, store product IDs, server-side purchase verification, and idempotent credit granting. Apple requires IAP for digital functionality/content, while Google Play requires Play Billing for digital goods/services. The web Midtrans flow must remain separate from native digital-goods checkout.
+8. Run physical-device smoke tests on a recent iPhone/iPad and Android device, including large video upload, interrupted upload recovery, render polling, signed output sharing, logout, native purchase reconciliation, and account deletion.
+9. Create production `.aab` and `.ipa` builds through EAS, test them through Google Play internal testing and TestFlight, then submit for review.
 
 ## Build commands
 
@@ -35,4 +38,4 @@ npx expo start
 npx eas build --platform all --profile production
 ```
 
-Do not claim store-ready status until the remaining credential, asset, billing-policy, and physical-device checks above are completed.
+Do not claim store-ready status until the remaining credential, asset, billing-policy, native purchase, and physical-device checks above are completed.
