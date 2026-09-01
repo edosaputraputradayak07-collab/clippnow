@@ -40,7 +40,8 @@
         {
           "android": {
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "kotlinVersion": "2.2.0"
           },
           "ios": {
             "deploymentTarget": "16.4"
