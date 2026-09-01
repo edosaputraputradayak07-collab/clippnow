@@ -1,8 +1,18 @@
-const projects = [
-  { name: 'Belum ada project', meta: 'Upload video pertama untuk mulai.', state: 'READY' },
-];
+import { createClient } from '@/lib/supabase/server';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const [{ data: profile }, { data: projects }] = await Promise.all([
+    supabase.from('profiles').select('full_name,credits,plan').eq('id', user.id).single(),
+    supabase.from('projects').select('id,name,status,format,created_at').order('created_at', { ascending: false }).limit(8),
+  ]);
+
+  const credits = profile?.credits ?? 0;
+  const plan = profile?.plan ?? 'trial';
+
   return (
     <main className="min-h-screen bg-[#05070d] text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl">
@@ -11,30 +21,32 @@ export default function DashboardPage() {
           <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.25em] text-slate-600">Creator workspace</p>
           <nav className="mt-10 space-y-2 text-sm font-semibold">
             <a href="/dashboard" className="block rounded-xl bg-cyan-300/10 px-4 py-3 text-cyan-200">Studio</a>
+            <a href="/dashboard/create" className="block rounded-xl px-4 py-3 text-slate-500 hover:bg-white/[0.04] hover:text-white">Create clip</a>
             <a href="#projects" className="block rounded-xl px-4 py-3 text-slate-500 hover:bg-white/[0.04] hover:text-white">Projects</a>
             <a href="/pricing" className="block rounded-xl px-4 py-3 text-slate-500 hover:bg-white/[0.04] hover:text-white">Buy credits</a>
           </nav>
+          <form action="/auth/signout" method="post" className="mt-10"><button className="text-xs font-bold text-slate-600 hover:text-white">Sign out</button></form>
         </aside>
 
         <section className="flex-1 p-5 sm:p-8 lg:p-10">
           <header className="flex items-center justify-between border-b border-white/10 pb-6">
-            <div><div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">Creator dashboard</div><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Workspace kamu</h1></div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-right"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-600">Credits</div><div className="text-lg font-black text-white">0</div></div>
+            <div><div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">Creator dashboard</div><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Halo, {profile?.full_name || user.email?.split('@')[0]}</h1><p className="mt-2 text-sm text-slate-600">Workspace untuk mengubah video panjang menjadi konten pendek.</p></div>
+            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] px-5 py-3 text-right"><div className="text-[9px] font-bold uppercase tracking-wider text-slate-600">Credits</div><div className="text-2xl font-black text-cyan-200">{credits}</div></div>
           </header>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-            <a href="/#studio" className="group rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.09] to-violet-400/[0.04] p-7 transition hover:border-cyan-300/40">
+            <a href="/dashboard/create" className="group rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-cyan-300/[0.09] to-violet-400/[0.04] p-7 transition hover:-translate-y-0.5 hover:border-cyan-300/40">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-300 text-xl font-black text-slate-950">+</div>
               <h2 className="mt-8 text-2xl font-black">Buat clip baru</h2>
-              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Upload video, tentukan range, pilih format, lalu lanjutkan ke processing.</p>
+              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Upload video, pilih momen, format, dan siapkan project untuk processing.</p>
               <div className="mt-6 text-xs font-black text-cyan-200">OPEN STUDIO →</div>
             </a>
-            <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-7"><div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Account status</div><div className="mt-4 text-lg font-black">Free / Trial</div><p className="mt-2 text-xs leading-5 text-slate-500">Upgrade untuk mendapatkan credits dan akses processing.</p><a href="/pricing" className="mt-6 inline-flex rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white hover:bg-white/[0.1]">Lihat paket</a></div>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.025] p-7"><div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Account</div><div className="mt-4 text-lg font-black capitalize">{plan} plan</div><p className="mt-2 text-xs leading-5 text-slate-500">{credits > 0 ? 'Kamu siap membuat clip berikutnya.' : 'Kredit habis. Pilih paket untuk melanjutkan.'}</p><a href="/pricing" className="mt-6 inline-flex rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white hover:bg-white/[0.1]">{credits > 0 ? 'Tambah kredit' : 'Beli kredit'}</a></div>
           </div>
 
           <section id="projects" className="mt-10">
-            <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">Projects</h2><p className="mt-1 text-xs text-slate-600">Riwayat clip yang pernah dibuat.</p></div><span className="text-[10px] font-bold text-slate-600">0 PROJECT</span></div>
-            <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-8 text-center"><div className="text-sm font-bold text-slate-400">{projects[0].name}</div><p className="mt-2 text-xs text-slate-600">{projects[0].meta}</p></div>
+            <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">Projects</h2><p className="mt-1 text-xs text-slate-600">Riwayat clip kamu.</p></div><span className="text-[10px] font-bold text-slate-600">{projects?.length ?? 0} PROJECT</span></div>
+            {projects && projects.length > 0 ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{projects.map((project) => <article key={project.id} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold">{project.name}</div><div className="mt-1 text-xs text-slate-600">{project.format} • {project.status}</div></div><span className="rounded-full border border-white/10 px-2 py-1 text-[9px] font-black text-slate-500">PROJECT</span></div></article>)}</div> : <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-8 text-center"><div className="text-sm font-bold text-slate-400">Belum ada project</div><p className="mt-2 text-xs text-slate-600">Upload video pertama untuk mulai.</p></div>}
           </section>
         </section>
       </div>
