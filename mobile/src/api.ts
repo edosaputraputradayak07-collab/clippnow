@@ -55,10 +55,6 @@ export function createProject(input: {
   });
 }
 
-export function getProject(projectId: string) {
-  return mobileFetch<MobileProject>(`/api/projects/${encodeURIComponent(projectId)}`);
-}
-
 export function startRender(projectId: string) {
   return mobileFetch<{ started: boolean; job_id: string }>(`/api/projects/${encodeURIComponent(projectId)}/render`, {
     method: 'POST',
@@ -67,4 +63,8 @@ export function startRender(projectId: string) {
 
 export function getSignedOutput(projectId: string) {
   return mobileFetch<{ url: string }>(`/api/projects/${encodeURIComponent(projectId)}/signed-output`);
+}
+
+export function deleteAccount() {
+  return mobileFetch<{ deleted: true }>('/api/mobile/account', { method: 'DELETE' });
 }
