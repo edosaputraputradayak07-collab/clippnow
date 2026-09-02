@@ -14,7 +14,7 @@ const PLANS = {
 type Plan = keyof typeof PLANS;
 
 export async function POST(request: Request) {
-  const ip = getClientIp(request) ?? 'unknown';
+  const ip = getClientIp(request.headers) ?? 'unknown';
   if (!(await securityGuard(`checkout:${ip}`, 10, 60))) {
     await logSecurityEvent({ eventType: 'rate_limit_checkout', severity: 'warning', request });
     return NextResponse.json({ error: 'Terlalu banyak percobaan pembayaran. Coba lagi sebentar.' }, { status: 429, headers: noStoreHeaders() });
