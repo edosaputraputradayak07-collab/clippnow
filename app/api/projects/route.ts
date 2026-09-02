@@ -7,7 +7,7 @@ import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 import { validateRenderRequest } from '@/lib/rendering/validation';
 
 export async function POST(request: Request) {
-  const ip = getClientIp(request) ?? 'unknown';
+  const ip = getClientIp(request.headers) ?? 'unknown';
   if (!(await securityGuard(`projects:${ip}`, 20, 60))) {
     await logSecurityEvent({ eventType: 'rate_limit_projects', severity: 'warning', request });
     return NextResponse.json({ error: 'Terlalu banyak permintaan. Coba lagi sebentar.' }, { status: 429, headers: noStoreHeaders() });
