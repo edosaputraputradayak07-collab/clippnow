@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { finishTransaction, useIAP, type Purchase } from 'expo-iap';
+import { finishTransaction, getAvailablePurchases, useIAP, type Purchase } from 'expo-iap';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { supabase } from './src/supabase';
@@ -38,7 +38,7 @@ export default function App() {
   const [selectedVideo, setSelectedVideo] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [status, setStatus] = useState('');
 
-  const { connected, products, fetchProducts, requestPurchase, getAvailablePurchases } = useIAP({
+  const { connected, products, fetchProducts, requestPurchase } = useIAP({
     onPurchaseSuccess: (purchase) => {
       void handlePurchase(purchase);
     },
@@ -219,9 +219,9 @@ export default function App() {
     setBillingBusy(true);
     setStatus('Memulihkan pembelian...');
     try {
-      const purchases = (await getAvailablePurchases()) as Purchase[];
-      for (const purchase of purchases) await handlePurchase(purchase);
-      if (purchases.length === 0) setStatus('Tidak ada pembelian yang perlu dipulihkan.');
+      const purchases = await getAvailablePurchases();
+      for (const purchase of purchases ?? []) await handlePurchase(purchase);
+      if (!purchases?.length) setStatus('Tidak ada pembelian yang perlu dipulihkan.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Gagal memulihkan pembelian.');
       setBillingBusy(false);
