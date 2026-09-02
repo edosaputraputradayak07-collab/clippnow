@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isOwnerPlan } from '@/lib/billing/access';
+import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/defense';
 import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 
 const PLANS = {
@@ -13,7 +14,14 @@ const PLANS = {
 type Plan = keyof typeof PLANS;
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request) ?? 'unknown';
+  if (!(await securityGuard(`checkout:${ip}`, 10, 60))) {
+    await logSecurityEvent({ eventType: 'rate_limit_checkout', severity: 'warning', request });
+    return NextResponse.json({ error: 'Terlalu banyak percobaan pembayaran. Coba lagi sebentar.' }, { status: 429, headers: noStoreHeaders() });
+  }
+
   if (!sameOrigin(request)) {
+    await logSecurityEvent({ eventType: 'invalid_origin_checkout', severity: 'warning', request });
     return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403, headers: noStoreHeaders() });
   }
 
@@ -33,6 +41,7 @@ export async function POST(request: Request) {
   }
 
   if (isOwnerPlan(profile.plan)) {
+    await logSecurityEvent({ userId: user.id, eventType: 'owner_checkout_attempt', severity: 'warning', request });
     return NextResponse.json({ error: 'Akun owner ClippNow sudah unlimited dan tidak perlu membeli paket.' }, { status: 409, headers: noStoreHeaders() });
   }
 
