@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getClientIp, securityHeaders } from './defense';
+import { getClientIp, securityHeaders } from './defense-core';
 
 describe('ClippNow security defense', () => {
   it('prefers trusted proxy headers in order', () => {
