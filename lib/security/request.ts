@@ -1,3 +1,5 @@
+import { securityHeaders } from './defense';
+
 export function sameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (!origin) return false;
@@ -12,5 +14,8 @@ export function sameOrigin(request: Request) {
 }
 
 export function noStoreHeaders() {
-  return { 'Cache-Control': 'no-store, max-age=0' };
+  return {
+    'Cache-Control': 'no-store, max-age=0',
+    ...securityHeaders(),
+  };
 }
