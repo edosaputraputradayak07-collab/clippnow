@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isOwnerPlan } from '@/lib/billing/access';
 import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 
 const PLANS = {
@@ -20,6 +21,21 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders() });
 
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .select('plan')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return NextResponse.json({ error: 'Profil akun tidak ditemukan.' }, { status: 500, headers: noStoreHeaders() });
+  }
+
+  if (isOwnerPlan(profile.plan)) {
+    return NextResponse.json({ error: 'Akun owner ClippNow sudah unlimited dan tidak perlu membeli paket.' }, { status: 409, headers: noStoreHeaders() });
+  }
+
   const body = await request.json().catch(() => ({}));
   const plan = body.plan as Plan;
   if (!plan || !PLANS[plan]) return NextResponse.json({ error: 'Paket tidak valid.' }, { status: 400, headers: noStoreHeaders() });
@@ -29,7 +45,6 @@ export async function POST(request: Request) {
 
   const selected = PLANS[plan];
   const orderId = `CLIPP-${user.id.slice(0, 8)}-${Date.now()}`;
-  const admin = createAdminClient();
 
   const { error: insertError } = await admin.from('payments').insert({
     user_id: user.id,
