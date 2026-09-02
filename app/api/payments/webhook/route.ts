@@ -11,7 +11,7 @@ function signaturesMatch(expected: string, received: string) {
 }
 
 export async function POST(request: Request) {
-  const ip = getClientIp(request) ?? 'unknown';
+  const ip = getClientIp(request.headers) ?? 'unknown';
   if (!(await securityGuard(`midtrans-webhook:${ip}`, 120, 60))) {
     await logSecurityEvent({ eventType: 'rate_limit_webhook', severity: 'warning', request });
     return NextResponse.json({ error: 'Too many notifications.' }, { status: 429, headers: noStoreHeaders() });
