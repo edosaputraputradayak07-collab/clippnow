@@ -31,3 +31,5 @@ export async function logSecurityEvent(params: {
     p_metadata: params.metadata ?? {},
   });
 }
+
+// Keep request-derived IP handling centralized through defense-core.
