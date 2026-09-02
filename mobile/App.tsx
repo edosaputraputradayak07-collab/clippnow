@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,14 +11,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { finishTransaction, useIAP, type Purchase } from 'expo-iap';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import { supabase } from './src/supabase';
 import { createProject, deleteAccount, getSignedOutput, listProjects, startRender, type MobileProject } from './src/api';
+import { verifyNativePurchase } from './src/billing-api';
+import { BILLING_PRODUCTS } from '../lib/billing/catalog';
 import { uploadVideo } from './src/upload';
 
 type Format = '9:16' | '1:1' | '16:9';
 const formats: Format[] = ['9:16', '1:1', '16:9'];
+const nativePlatform = Platform.OS === 'ios' ? 'ios' : 'android';
 
 export default function App() {
   const [sessionReady, setSessionReady] = useState(false);
@@ -25,12 +30,23 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [projects, setProjects] = useState<MobileProject[]>([]);
   const [selectedFormat, setSelectedFormat] = useState<Format>('9:16');
   const [projectName, setProjectName] = useState('');
   const [selectedVideo, setSelectedVideo] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [status, setStatus] = useState('');
+
+  const { connected, products, fetchProducts, requestPurchase, getAvailablePurchases } = useIAP({
+    onPurchaseSuccess: (purchase) => {
+      void handlePurchase(purchase);
+    },
+    onPurchaseError: (error) => {
+      if (error.code !== 'user-cancelled') setStatus(error.message || 'Pembelian gagal.');
+      setBillingBusy(false);
+    },
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -53,6 +69,14 @@ export default function App() {
     if (!userEmail) return;
     refreshProjects();
   }, [userEmail]);
+
+  useEffect(() => {
+    if (!connected || !userEmail) return;
+    void fetchProducts({
+      skus: BILLING_PRODUCTS.map((product) => product.id),
+      type: 'all',
+    }).catch((error) => setStatus(error instanceof Error ? error.message : 'Produk pembayaran belum tersedia.'));
+  }, [connected, userEmail, fetchProducts]);
 
   const selectedDuration = useMemo(() => Math.max(0.1, (selectedVideo?.duration ?? 60000) / 1000), [selectedVideo]);
 
@@ -150,6 +174,60 @@ export default function App() {
     }
   }
 
+  async function handlePurchase(purchase: Purchase) {
+    const product = BILLING_PRODUCTS.find((item) => item.id === purchase.productId);
+    const proof = purchase.purchaseToken;
+    if (!product || !proof) {
+      setStatus('Bukti transaksi tidak tersedia.');
+      setBillingBusy(false);
+      return;
+    }
+    setStatus('Memverifikasi pembayaran...');
+    try {
+      const result = await verifyNativePurchase({ platform: nativePlatform, productId: product.id, proof });
+      await finishTransaction({ purchase, isConsumable: product.kind === 'consumable' });
+      setStatus(result.already_processed ? 'Pembelian sudah diproses sebelumnya.' : `Pembayaran berhasil. +${result.credits_granted} kredit.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Pembayaran belum dapat diverifikasi.');
+      // Do not finish an unverified transaction. The store can replay it later.
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
+  async function buy(productId: string) {
+    const product = BILLING_PRODUCTS.find((item) => item.id === productId);
+    if (!product || !connected || billingBusy) return;
+    setBillingBusy(true);
+    setStatus('Membuka pembayaran...');
+    try {
+      await requestPurchase({
+        request: {
+          apple: { sku: product.id },
+          google: { skus: [product.id] },
+        },
+        type: product.kind === 'subscription' ? 'subs' : 'in-app',
+      });
+    } catch (error) {
+      setBillingBusy(false);
+      setStatus(error instanceof Error ? error.message : 'Gagal membuka pembayaran.');
+    }
+  }
+
+  async function restorePurchases() {
+    if (!connected || billingBusy) return;
+    setBillingBusy(true);
+    setStatus('Memulihkan pembelian...');
+    try {
+      const purchases = await getAvailablePurchases();
+      for (const purchase of purchases ?? []) await handlePurchase(purchase);
+      if (!purchases?.length) setStatus('Tidak ada pembelian yang perlu dipulihkan.');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Gagal memulihkan pembelian.');
+      setBillingBusy(false);
+    }
+  }
+
   function confirmDeleteAccount() {
     Alert.alert(
       'Hapus akun?',
@@ -200,6 +278,24 @@ export default function App() {
         <View style={styles.headerRow}>
           <View><Text style={styles.brand}>ClippNow</Text><Text style={styles.subtitle}>{userEmail}</Text></View>
           <Pressable onPress={() => supabase.auth.signOut()}><Text style={styles.link}>Keluar</Text></Pressable>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.headerRow}><View><Text style={styles.sectionTitle}>ClippNow Pro</Text><Text style={styles.muted}>Beli kredit langsung dari App Store / Play Store.</Text></View><Text style={styles.storeBadge}>{connected ? 'STORE ON' : 'CONNECTING'}</Text></View>
+          {BILLING_PRODUCTS.map((item) => {
+            const storeProduct = products?.find((product) => product.id === item.id);
+            return (
+              <View key={item.id} style={styles.billingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.projectTitle}>{item.displayName}</Text>
+                  <Text style={styles.muted}>{item.monthlyValue ?? `${item.credits} credits`}</Text>
+                  {!!storeProduct?.displayPrice && <Text style={styles.price}>{storeProduct.displayPrice}</Text>}
+                </View>
+                <Pressable disabled={!connected || billingBusy} onPress={() => buy(item.id)} style={[styles.smallButton, (!connected || billingBusy) && styles.disabled]}><Text style={styles.smallButtonText}>Beli</Text></Pressable>
+              </View>
+            );
+          })}
+          <Pressable disabled={!connected || billingBusy} onPress={restorePurchases} style={styles.secondary}><Text style={styles.secondaryText}>Pulihkan pembelian</Text></Pressable>
         </View>
 
         <View style={styles.card}>
@@ -266,7 +362,10 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden' },
   progressBar: { height: '100%', backgroundColor: '#111827' },
   project: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  billingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
   projectTitle: { fontWeight: '800', color: '#111827' },
+  price: { color: '#111827', fontWeight: '800', marginTop: 2 },
+  storeBadge: { fontSize: 11, fontWeight: '800', color: '#2563eb' },
   smallButton: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
   smallButtonText: { color: '#fff', fontWeight: '700' },
   dangerButton: { borderWidth: 1, borderColor: '#ef4444', borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
