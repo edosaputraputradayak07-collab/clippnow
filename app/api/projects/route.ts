@@ -2,12 +2,22 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
+import { logSecurityEvent, getClientIp, securityGuard } from '@/lib/security/defense';
 import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 import { validateRenderRequest } from '@/lib/rendering/validation';
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request) ?? 'unknown';
+  if (!(await securityGuard(`projects:${ip}`, 20, 60))) {
+    await logSecurityEvent({ eventType: 'rate_limit_projects', severity: 'warning', request });
+    return NextResponse.json({ error: 'Terlalu banyak permintaan. Coba lagi sebentar.' }, { status: 429, headers: noStoreHeaders() });
+  }
+
   const isMobile = Boolean(getBearerToken(request));
-  if (!isMobile && !sameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403, headers: noStoreHeaders() });
+  if (!isMobile && !sameOrigin(request)) {
+    await logSecurityEvent({ eventType: 'invalid_origin_projects', severity: 'warning', request });
+    return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403, headers: noStoreHeaders() });
+  }
 
   const mobileUser = isMobile ? await getMobileUser(request) : null;
   const supabase = mobileUser?.client ?? await createClient();
