@@ -23,9 +23,13 @@ export function buildFfmpegArgs(input: FfmpegInput): string[] {
   if (!size) throw new Error('Invalid format');
 
   const filters = [`scale=${size}:force_original_aspect_ratio=decrease`, `pad=${size}:(ow-iw)/2:(oh-ih)/2`, 'setsar=1'];
-  const effects = input.effects ?? [];
-  if (effects.includes('motion-zoom')) filters.push(`zoompan=z='min(zoom+0.0005,1.08)':d=1:s=${size}:fps=30`);
-  if (effects.includes('impact-shake')) filters.push('eq=contrast=1.08:saturation=1.12');
+  const effects = new Set(input.effects ?? []);
+
+  if (effects.has('motion-zoom')) filters.push(`zoompan=z='min(zoom+0.0005,1.08)':d=1:s=${size}:fps=30`);
+  if (effects.has('impact-shake')) filters.push('eq=contrast=1.08:saturation=1.12');
+  if (effects.has('beat-flash')) filters.push("eq=brightness='if(lt(mod(t,1.25),0.08),0.10,0)'");
+  if (effects.has('jump-cut')) filters.push('unsharp=5:5:0.55:5:5:0');
+  if (effects.has('clean-cut')) filters.push('unsharp=5:5:0.35:5:5:0');
   if (input.subtitlePath) filters.push(`subtitles=${escapeSubtitlePath(input.subtitlePath)}`);
 
   return [
