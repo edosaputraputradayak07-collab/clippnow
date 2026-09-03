@@ -46,7 +46,7 @@ export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
     .sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
   const winner = ranked[0].segment;
   const winnerIndex = ranked[0].index;
-  const clipStart = Math.max(0, winner.start - 2.5);
+  const clipStart = Math.max(0, winner.start);
   const targetLength = input.format === '16:9' ? 45 : 35;
   let clipEnd = Math.min(input.durationSeconds, clipStart + targetLength);
   const nextSegments = input.transcript.slice(winnerIndex + 1);
@@ -54,7 +54,7 @@ export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
   if (naturalEnd) clipEnd = Math.min(input.durationSeconds, naturalEnd + 1.5);
   if (clipEnd - clipStart < 8) clipEnd = Math.min(input.durationSeconds, clipStart + Math.min(targetLength, 15));
 
-  const hookEnd = Math.min(clipEnd, winner.start + 3);
+  const hookEnd = Math.min(clipEnd, winner.end, winner.start + 3);
   const effects = input.goal === 'education'
     ? ['motion-zoom', 'beat-flash', 'clean-cut']
     : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
