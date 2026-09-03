@@ -1,10 +1,7 @@
 const CLIPPNOW_SUPABASE_URL = 'https://hailjjuaxatdaiskazgq.supabase.co';
 const CLIPPNOW_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_VhYzxCvRiKsl-maZByhwRA_k_HBsOCZ';
 
-type SupabaseEnv = {
-  NEXT_PUBLIC_SUPABASE_URL?: string;
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
-};
+type SupabaseEnv = Record<string, string | undefined>;
 
 export function getSupabaseConfig(env: SupabaseEnv = process.env) {
   return {
