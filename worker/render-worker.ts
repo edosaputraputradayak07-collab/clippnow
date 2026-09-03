@@ -46,7 +46,9 @@ export async function processJob(jobId: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'render_failed';
     await admin.rpc('finalize_clippnow_job', { p_job_id: job.id, p_worker_id: workerId, p_status: 'failed', p_progress: Number(job.progress ?? 0), p_error_code: 'RENDER_FAILED', p_error_message: message });
-    await admin.from('projects').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', project.id); throw error;
+    await admin.from('projects').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', project.id);
+    await admin.rpc('release_clippnow_credit', { p_user_id: project.user_id, p_reference: project.id });
+    throw error;
   } finally { await rm(tmp, { recursive: true, force: true }); }
 }
 
