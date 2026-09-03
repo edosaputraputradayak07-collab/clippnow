@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TikTokShare from './tiktok-share';
+import { shouldAutoStartRender } from '@/lib/rendering/auto-render';
 
 type Project = { id:string; name:string; status:string; format:string; start_seconds:number; end_seconds:number; output_path:string|null; created_at:string };
 type Plan = { score:number; subtitle:{style:string}; effects:string[]; clip?:{startSeconds:number;endSeconds:number} };
 
 export default function RenderProject({project}:{project:Project}){
- const [status,setStatus]=useState(project.status); const [progress,setProgress]=useState(0); const [url,setUrl]=useState(''); const [error,setError]=useState(''); const [busy,setBusy]=useState(false); const [aiBusy,setAiBusy]=useState(false); const [plan,setPlan]=useState<Plan|null>(null);
+ const [status,setStatus]=useState(project.status); const [progress,setProgress]=useState(0); const [url,setUrl]=useState(''); const [error,setError]=useState(''); const [busy,setBusy]=useState(false); const [aiBusy,setAiBusy]=useState(false); const [plan,setPlan]=useState<Plan|null>(null); const autoStarted=useRef(false);
  async function refresh(){ const r=await fetch(`/api/projects/${project.id}`,{cache:'no-store'}); const d=await r.json().catch(()=>({})); if(r.ok){setStatus(d.project?.status??status);setProgress(d.job?.progress??0);if(d.project?.status==='completed')await getOutput();} }
  async function getOutput(){const r=await fetch(`/api/projects/${project.id}/signed-output`,{cache:'no-store'});const d=await r.json().catch(()=>({}));if(r.ok)setUrl(d.url??'');}
  async function analyzeViral(){
@@ -36,6 +37,7 @@ export default function RenderProject({project}:{project:Project}){
   }catch{setStatus('failed');setError('Render gagal. Periksa koneksi lalu coba lagi.');}
   finally{setBusy(false);}
  }
+ useEffect(()=>{if(shouldAutoStartRender(status)&&!autoStarted.current){autoStarted.current=true;void render();}},[status]);
  useEffect(()=>{if(status==='completed'&&!url){void getOutput();return;}if(status==='processing'||status==='queued'){const timer=setInterval(()=>void refresh(),3000);return()=>clearInterval(timer);}},[status,url]);
  return <main className="min-h-screen bg-[#05070d] px-4 py-6 text-white sm:px-8"><div className="mx-auto max-w-4xl"><a href="/dashboard" className="text-xs font-bold text-slate-500 hover:text-white">← Dashboard</a><div className="mt-6 rounded-3xl border border-white/10 bg-white/[0.025] p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Creator Studio • AI Viral</div><h1 className="mt-2 text-3xl font-black">{project.name}</h1><p className="mt-2 text-sm text-slate-500">{project.format} • {Math.max(0,project.end_seconds-project.start_seconds).toFixed(1)} detik</p></div><span className="rounded-full border border-white/10 px-3 py-2 text-[10px] font-black uppercase text-slate-400">{status}</span></div>
  <div className="mt-7 rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.04] p-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">One-tap editing</div><div className="mt-2 text-xl font-black">🔥 Buat Versi Viral Otomatis</div><p className="mt-1 text-sm text-slate-500">ClippNow otomatis menganalisis ucapan, memilih momen paling potensial, membuat subtitle, lalu menerapkan efek short-form.</p><div className="mt-4 flex flex-wrap gap-3"><button disabled={aiBusy||busy} onClick={makeViral} className="rounded-xl border border-white/10 px-5 py-3 text-sm font-black text-white disabled:opacity-40">{aiBusy?'Menganalisis suara…':'Preview Analisis AI'}</button>{plan&&<span className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-black text-emerald-200">Viral Score {plan.score}/100</span>}</div>{plan&&<div className="mt-4 flex flex-wrap gap-2 text-[10px] font-bold text-slate-400"><span className="rounded-full border border-white/10 px-3 py-2">Subtitle: {plan.subtitle.style}</span>{plan.effects.map(effect=><span key={effect} className="rounded-full border border-white/10 px-3 py-2">{effect}</span>)}</div>}</div>
