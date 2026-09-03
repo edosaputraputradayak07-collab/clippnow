@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getFreshTikTokAccessToken, getTikTokAccount } from '@/lib/tiktok/client';
+import { createTikTokMediaSignature, getTikTokMediaSigningSecret } from '@/lib/tiktok/media-signature';
 import { noStoreHeaders } from '@/lib/security/request';
 
 type Body = { project_id?: string; mode?: 'direct' | 'draft'; caption?: string; privacy_level?: string; disable_comment?: boolean; disable_duet?: boolean; disable_stitch?: boolean; consent?: boolean };
@@ -18,9 +19,19 @@ export async function POST(request: Request) {
   const account = await getTikTokAccount(user.id);
   if (!account) return NextResponse.json({ error: 'Hubungkan akun TikTok terlebih dahulu.' }, { status: 400, headers: noStoreHeaders() });
 
+  const scopes = new Set(account.scopes ?? []);
+  const requiredScope = body.mode === 'direct' ? 'video.publish' : 'video.upload';
+  if (!scopes.has(requiredScope)) return NextResponse.json({ error: `Izin TikTok ${requiredScope} belum tersedia pada akun terhubung.` }, { status: 403, headers: noStoreHeaders() });
+
   const mediaBase = process.env.TIKTOK_MEDIA_PUBLIC_BASE_URL;
   if (!mediaBase) return NextResponse.json({ error: 'TikTok media URL belum dikonfigurasi. Upload manual tetap tersedia.' }, { status: 503, headers: noStoreHeaders() });
-  const mediaUrl = new URL(encodeURIComponent(project.output_path), mediaBase.endsWith('/') ? mediaBase : `${mediaBase}/`).toString();
+  let mediaSecret: string;
+  try { mediaSecret = getTikTokMediaSigningSecret(); } catch { return NextResponse.json({ error: 'TikTok media signing belum dikonfigurasi.' }, { status: 503, headers: noStoreHeaders() }); }
+  const expiresAt = Math.floor(Date.now() / 1000) + 300;
+  const signature = createTikTokMediaSignature(project.id, expiresAt, mediaSecret);
+  const base = mediaBase.endsWith('/') ? mediaBase.slice(0, -1) : mediaBase;
+  const mediaUrl = `${base}/api/tiktok/media/${encodeURIComponent(project.id)}?expires=${expiresAt}&sig=${signature}`;
+
   const accessToken = await getFreshTikTokAccessToken(account);
   const creatorResponse = body.mode === 'direct' ? await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: '{}', cache: 'no-store' }) : null;
   const creator = creatorResponse ? await creatorResponse.json() as { data?: { privacy_level_options?: string[]; max_video_post_duration_sec?: number }; error?: { code?: string; message?: string } } : null;
