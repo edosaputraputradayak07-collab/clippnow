@@ -1,5 +1,5 @@
-type OwnerConfig = {
-  ownerEmail?: string;
+type OwnerEnv = {
+  CLIPPNOW_OWNER_EMAIL?: string;
 };
 
 export function isOwnerEmail(email: string | null | undefined, configuredOwnerEmail?: string): boolean {
@@ -10,8 +10,6 @@ export function isOwnerEmail(email: string | null | undefined, configuredOwnerEm
   return normalizedEmail === normalizedOwnerEmail;
 }
 
-export function getOwnerConfig(env: OwnerConfig = process.env): OwnerConfig {
-  return {
-    ownerEmail: env.ownerEmail?.trim() || undefined,
-  };
+export function isOwnerUser(email: string | null | undefined, env: OwnerEnv = process.env): boolean {
+  return isOwnerEmail(email, env.CLIPPNOW_OWNER_EMAIL);
 }
