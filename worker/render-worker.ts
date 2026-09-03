@@ -14,8 +14,8 @@ type EditPlan = { effects?: string[]; subtitle?: { style?: 'viral-punch' | 'clea
 export async function processJob(jobId: string) {
   const job = await claim(jobId); if (!job) throw new Error('job_not_claimed');
   const admin = createAdminClient();
-  const { data: project, error } = await admin.from('projects').select('id,user_id,start_seconds,end_seconds,format,source_path,edit_mode,edit_plan').eq('id', job.project_id).single();
-  if (error || !project || project.user_id !== job.user_id || project.source_path !== job.source_path) throw new Error('job_source_mismatch');
+  const { data: project, error } = await admin.from('projects').select('id,user_id,start_seconds,end_seconds,format,source_path,edit_mode,edit_plan,credit_reference').eq('id', job.project_id).single();
+  if (error || !project || project.user_id !== job.user_id || project.source_path !== job.source_path || !project.credit_reference) throw new Error('job_source_mismatch');
 
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'clippnow-'));
   const input = path.join(tmp, 'source');
@@ -47,7 +47,7 @@ export async function processJob(jobId: string) {
     const message = error instanceof Error ? error.message : 'render_failed';
     await admin.rpc('finalize_clippnow_job', { p_job_id: job.id, p_worker_id: workerId, p_status: 'failed', p_progress: Number(job.progress ?? 0), p_error_code: 'RENDER_FAILED', p_error_message: message });
     await admin.from('projects').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', project.id);
-    await admin.rpc('release_clippnow_credit', { p_user_id: project.user_id, p_reference: project.id });
+    await admin.rpc('release_clippnow_credit', { p_user_id: project.user_id, p_reference: project.credit_reference });
     throw error;
   } finally { await rm(tmp, { recursive: true, force: true }); }
 }
