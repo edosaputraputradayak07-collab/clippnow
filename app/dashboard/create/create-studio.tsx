@@ -2,6 +2,7 @@
 import type { ChangeEvent, SyntheticEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { formatCreditBalance } from '@/lib/billing/credit-display';
 
 type ClipFormat = '9:16' | '1:1' | '16:9';
 
@@ -15,6 +16,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isOwner = plan === 'owner';
 
   useEffect(() => {
     if (!file) {
@@ -42,7 +44,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   }
 
   async function prepare() {
-    if (!file || !duration || credits < 1 || busy) return;
+    if (!file || !duration || (!isOwner && credits < 1) || busy) return;
     setBusy(true);
     setError('');
     setStatus('Mengunggah video…');
@@ -79,8 +81,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
         throw new Error(data.error ?? 'Project gagal dibuat.');
       }
 
-      setCredits(data.credits_remaining);
-      setStatus('Project dibuat. Membuka Viral Studio…');
+      if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining);
+      setStatus('Project dibuat. AI langsung mencari momen viral dan merender…');
       window.location.assign(`/dashboard/projects/${data.project_id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Terjadi kesalahan. Coba lagi.');
@@ -98,7 +100,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
           </div>
           <div className="flex gap-2">
             <span className="hidden rounded-full border border-white/10 px-3 py-2 text-[10px] font-bold text-slate-500 sm:inline">{plan.toUpperCase()}</span>
-            <span className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs font-black text-cyan-200">{credits} credits</span>
+            <span className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs font-black text-cyan-200">{formatCreditBalance(credits, plan)} credits</span>
           </div>
         </header>
 
@@ -161,10 +163,10 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs text-rose-300">{error}</div>}
             {status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">{status}</div>}
 
-            <button disabled={!file || !duration || credits < 1 || busy} onClick={prepare} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">
-              {busy ? 'AI sedang bekerja…' : credits < 1 ? 'Beli kredit' : 'Buat clip otomatis →'}
+            <button disabled={!file || !duration || (!isOwner && credits < 1) || busy} onClick={prepare} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">
+              {busy ? 'AI sedang bekerja…' : !isOwner && credits < 1 ? 'Beli kredit' : 'Buat clip otomatis →'}
             </button>
-            <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">1 credit = 1 proses clip otomatis.</p>
+            <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">{isOwner ? 'Owner: proses clip tidak mengurangi kredit.' : '1 credit = 1 proses clip otomatis.'}</p>
           </aside>
         </div>
       </div>
