@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
+import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/defense';
 import { sameOrigin, noStoreHeaders } from '@/lib/security/request';
 import { buildViralEditPlan, type ViralGoal } from '@/lib/ai/viral-edit-plan';
 
@@ -15,12 +16,24 @@ function goal(value: unknown): ViralGoal {
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const isMobile = Boolean(getBearerToken(request));
-  if (!isMobile && !sameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403, headers: noStoreHeaders() });
+  if (!isMobile && !sameOrigin(request)) {
+    await logSecurityEvent({ eventType: 'invalid_origin_ai', severity: 'warning', request });
+    return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403, headers: noStoreHeaders() });
+  }
 
   const mobileUser = isMobile ? await getMobileUser(request) : null;
   const supabase = mobileUser?.client ?? await createClient();
   const user = mobileUser?.user ?? (await supabase.auth.getUser()).data.user;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders() });
+
+  const ip = getClientIp(request.headers) ?? 'unknown';
+  if (!(await securityGuard(`ai:${user.id}:${ip}`, 5, 60))) {
+    await logSecurityEvent({ userId: user.id, eventType: 'rate_limit_ai', severity: 'warning', request });
+    return NextResponse.json({ error: 'Terlalu banyak permintaan AI. Coba lagi sebentar.' }, { status: 429, headers: noStoreHeaders() });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: 'AI subtitle belum dikonfigurasi.' }, { status: 503, headers: noStoreHeaders() });
 
   const { id } = await context.params;
   const body = await request.json().catch(() => ({}));
@@ -38,9 +51,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const admin = createAdminClient();
   const { data: source, error: sourceError } = await admin.storage.from(BUCKET).download(project.source_path);
   if (sourceError || !source) return NextResponse.json({ error: 'Video sumber tidak dapat dibaca.' }, { status: 404, headers: noStoreHeaders() });
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'AI subtitle belum dikonfigurasi.' }, { status: 503, headers: noStoreHeaders() });
 
   const form = new FormData();
   form.append('file', new File([await source.arrayBuffer()], 'source.mp4', { type: source.type || 'video/mp4' }));
