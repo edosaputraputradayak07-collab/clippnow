@@ -33,10 +33,10 @@ export async function POST(request: Request) {
 
   const { format, start_seconds: start, end_seconds: end } = validation.value;
   const admin = createAdminClient();
-  const { data: project, error: projectError } = await supabase.from('projects').insert({ user_id: user.id, name, original_filename: typeof body.original_filename === 'string' ? body.original_filename.slice(0, 255) : null, start_seconds: start, end_seconds: end, format, source_path: sourcePath, status: 'queued', credit_reference: undefined }).select('id').single();
+  const { data: project, error: projectError } = await supabase.from('projects').insert({ user_id: user.id, name, original_filename: typeof body.original_filename === 'string' ? body.original_filename.slice(0, 255) : null, start_seconds: start, end_seconds: end, format, source_path: sourcePath, status: 'queued', credit_reference: crypto.randomUUID() }).select('id,credit_reference').single();
   if (projectError || !project) return NextResponse.json({ error: 'Gagal membuat project.' }, { status: 500, headers: noStoreHeaders() });
 
-  const creditReference = project.id;
+  const creditReference = project.credit_reference;
   const { data: balance, error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
   if (creditError) {
     await supabase.from('projects').delete().eq('id', project.id);
@@ -51,6 +51,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Gagal membuat render job.' }, { status: 500, headers: noStoreHeaders() });
   }
 
-  await admin.from('projects').update({ credit_reference: creditReference }).eq('id', project.id).eq('user_id', user.id);
   return NextResponse.json({ project_id: project.id, job_id: job.id, credits_remaining: balance }, { headers: noStoreHeaders() });
 }
