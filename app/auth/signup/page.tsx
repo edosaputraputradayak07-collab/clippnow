@@ -2,55 +2,23 @@
 
 import { FormEvent, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { authExperience } from '@/lib/ui/marketing-experience';
 
 export default function SignupPage() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
+  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+  const [message, setMessage] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name } },
-    });
-    if (signUpError) {
-      setError('Pendaftaran gagal. Periksa email dan password lalu coba lagi.');
-      setLoading(false);
-      return;
-    }
-    if (data.session) window.location.href = '/dashboard';
-    else setMessage('Akun dibuat. Cek email untuk konfirmasi sebelum masuk.');
-    setLoading(false);
+    event.preventDefault(); setLoading(true); setError(''); setMessage(''); const supabase = createClient();
+    const { data, error: signUpError } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+    if (signUpError) { setError('Pendaftaran gagal. Periksa email dan password lalu coba lagi.'); setLoading(false); return; }
+    if (data.session) window.location.href = '/dashboard'; else setMessage('Akun dibuat. Cek email untuk konfirmasi sebelum masuk.'); setLoading(false);
   }
-
-  return (
-    <main className="min-h-screen bg-[#05070d] px-5 py-10 text-white">
-      <div className="mx-auto flex min-h-[80vh] max-w-md items-center">
-        <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.035] p-7 shadow-2xl shadow-black/30 sm:p-9">
-          <a href="/" className="text-xl font-black">Clipp<span className="text-cyan-300">Now</span></a>
-          <div className="mt-10 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Start creating</div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight">Buat akun ClippNow</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-500">Dapatkan 1 kredit trial untuk mencoba workflow pertama.</p>
-          <form onSubmit={submit} className="mt-8 space-y-4">
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Nama</span><input required autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Email</span><input required autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Password</span><input required autoComplete="new-password" minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>
-            {error && <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-300">{error}</p>}
-            {message && <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">{message}</p>}
-            <button disabled={loading} className="w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:opacity-50">{loading ? 'Membuat akun…' : 'Daftar gratis →'}</button>
-          </form>
-          <p className="mt-6 text-center text-xs text-slate-600">Sudah punya akun? <a href="/auth/login" className="font-bold text-cyan-300">Masuk</a></p>
-        </div>
-      </div>
-    </main>
-  );
+  return <main className="min-h-screen bg-[#05070d] text-white lg:grid lg:grid-cols-[1.05fr_.95fr]">
+    <section className="relative hidden overflow-hidden border-r border-white/10 p-10 lg:flex lg:flex-col lg:justify-between"><div className="pointer-events-none absolute -left-32 top-20 h-96 w-96 rounded-full bg-cyan-300/10 blur-[100px]" /><div className="pointer-events-none absolute right-0 bottom-0 h-80 w-80 rounded-full bg-violet-400/10 blur-[100px]" />
+      <a href="/" className="relative flex items-center gap-3 text-xl font-black"><BrandMark /><span>Clipp<span className="text-cyan-300">Now</span></span></a><div className="relative max-w-xl"><div className="text-[10px] font-black uppercase tracking-[.2em] text-cyan-300">{authExperience.visualLabel}</div><h2 className="mt-5 text-5xl font-black leading-none tracking-[-.04em]">Bangun konten<span className="block text-slate-500">tanpa mulai dari nol.</span></h2><p className="mt-5 max-w-lg text-sm leading-6 text-slate-500">1 kredit trial untuk mencoba workflow AI pertama kamu.</p><div className="mt-8 grid grid-cols-2 gap-3"><Feature title="AI pilih momen" /><Feature title="Subtitle otomatis" /><Feature title="Efek dinamis" /><Feature title="9:16 ready" /></div><div className="mt-4 rounded-[2rem] border border-white/10 bg-white/[.03] p-3"><div className="aspect-[2/1] rounded-[1.5rem] bg-[radial-gradient(circle_at_25%_30%,rgba(34,211,238,.3),transparent_25%),radial-gradient(circle_at_80%_70%,rgba(139,92,246,.22),transparent_30%),linear-gradient(135deg,#101827,#05070d)] p-5"><div className="flex h-full items-end justify-between rounded-2xl border border-white/10 bg-black/20 p-5"><div><div className="text-[8px] font-black uppercase tracking-widest text-cyan-200">Viral preview</div><div className="mt-2 text-xl font-black">Upload → AI → Ready</div></div><div className="h-12 w-1 rounded-full bg-cyan-300 shadow-[0_0_20px_rgba(103,232,249,.7)]" /></div></div></div></div><div className="relative text-[10px] font-bold text-slate-600">Creator-first • Private workspace • Fast workflow</div>
+    </section>
+    <div className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8"><div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-white/[0.035] p-7 shadow-2xl shadow-black/30 sm:p-9"><a href="/" className="text-xl font-black lg:hidden">Clipp<span className="text-cyan-300">Now</span></a><div className="mt-8 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">Start creating</div><h1 className="mt-3 text-3xl font-black tracking-tight">Buat akun ClippNow</h1><p className="mt-3 text-sm leading-6 text-slate-500">Mulai dengan 1 kredit trial dan biarkan AI mencari momen terbaik.</p><form onSubmit={submit} className="mt-8 space-y-4"><label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Nama</span><input required autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label><label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Email</span><input required autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label><label className="block"><span className="mb-2 block text-xs font-bold text-slate-400">Password</span><input required autoComplete="new-password" minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none focus:border-cyan-300/60" /></label>{error && <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-300">{error}</p>}{message && <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">{message}</p>}<button disabled={loading} className="w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-200 disabled:opacity-50">{loading ? 'Membuat akun…' : 'Daftar gratis →'}</button></form><p className="mt-6 text-center text-xs text-slate-600">Sudah punya akun? <a href="/auth/login" className="font-bold text-cyan-300">Masuk</a></p></div></div>
+  </main>;
 }
+function Feature({ title }: { title: string }) { return <div className="rounded-2xl border border-white/10 bg-white/[.03] p-4"><div className="text-[8px] font-black uppercase tracking-widest text-cyan-300">AI</div><div className="mt-2 text-xs font-black">{title}</div></div>; }
+function BrandMark() { return <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30"><span className="absolute h-6 w-6 rounded-full border-[5px] border-slate-950" /><span className="absolute right-1.5 h-2.5 w-2.5 rotate-45 rounded-[2px] bg-cyan-300" /><span className="relative text-[9px] font-black">▶</span></span>; }
