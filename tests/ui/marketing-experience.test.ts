@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { landingExperience, authExperience, dashboardExperience } from '@/lib/ui/marketing-experience';
+import { landingExperience, authExperience, dashboardExperience } from '../../lib/ui/marketing-experience';
 
 describe('ClippNow marketing experience', () => {
   it('uses the automatic viral workflow in public messaging', () => {
