@@ -10,6 +10,9 @@ export function isOwnerEmail(email: string | null | undefined, configuredOwnerEm
   return normalizedEmail === normalizedOwnerEmail;
 }
 
-export function isOwnerUser(email: string | null | undefined, env: OwnerEnv = process.env): boolean {
+export function isOwnerUser(
+  email: string | null | undefined,
+  env: OwnerEnv = { CLIPPNOW_OWNER_EMAIL: process.env.CLIPPNOW_OWNER_EMAIL },
+): boolean {
   return isOwnerEmail(email, env.CLIPPNOW_OWNER_EMAIL);
 }
