@@ -15,7 +15,7 @@ describe('buildFfmpegArgs', () => {
     const filter = args[args.indexOf('-vf') + 1];
     expect(filter).toContain('zoompan');
     expect(filter).toContain('eq=contrast=1.08:saturation=1.12');
-    expect(filter).toContain('beat-flash');
-    expect(filter).toContain('jump-cut');
+    expect(filter).toContain('brightness=');
+    expect(filter).toContain('unsharp=');
   });
 });
