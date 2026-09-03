@@ -5,6 +5,7 @@ import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
 import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/defense';
 import { sameOrigin, noStoreHeaders } from '@/lib/security/request';
 import { buildViralEditPlan, type ViralGoal } from '@/lib/ai/viral-edit-plan';
+import { selectClipWords } from '@/lib/ai/transcript-clip';
 
 const BUCKET = 'clippnow-videos';
 const OPENAI_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -43,7 +44,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const plan = buildViralEditPlan({ durationSeconds: duration, format: project.format, goal: requestedGoal, transcript: localSegments });
   const selectedStart = offset + plan.clip.startSeconds;
   const selectedEnd = offset + plan.clip.endSeconds;
-  const words = (transcription.words ?? []).filter(word => word.start < plan.clip.endSeconds && word.end > plan.clip.startSeconds).map(word => ({ ...word, start: word.start + offset, end: word.end + offset }));
-  await admin.from('projects').update({ start_seconds: selectedStart, end_seconds: selectedEnd, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: { ...plan, transcript: localSegments, words }, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
+  const words = selectClipWords(transcription.words ?? [], plan.clip.startSeconds, plan.clip.endSeconds);
+  const { error: updateError } = await admin.from('projects').update({ start_seconds: selectedStart, end_seconds: selectedEnd, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: { ...plan, transcript: localSegments, words }, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
+  if (updateError) { console.error('AI project update failed', updateError); return NextResponse.json({ error: 'Hasil AI tidak dapat disimpan. Coba lagi.' }, { status: 500, headers: noStoreHeaders() }); }
   return NextResponse.json({ transcript: localSegments, words, plan: { ...plan, clip: { startSeconds: selectedStart, endSeconds: selectedEnd } } }, { headers: noStoreHeaders() });
 }
