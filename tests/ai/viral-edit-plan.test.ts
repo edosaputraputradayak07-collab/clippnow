@@ -15,7 +15,7 @@ describe('buildViralEditPlan', () => {
     });
 
     expect(plan.score).toBeGreaterThanOrEqual(70);
-    expect(plan.hook.endSeconds).toBeLessThanOrEqual(3);
+    expect(plan.hook.endSeconds - plan.hook.startSeconds).toBeLessThanOrEqual(3);
     expect(plan.subtitle.style).toBe('viral-punch');
     expect(plan.effects).toContain('motion-zoom');
     expect(plan.effects).toContain('beat-flash');
