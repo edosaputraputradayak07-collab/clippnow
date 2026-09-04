@@ -34,16 +34,17 @@ function segmentScore(segment: TranscriptSegment, all: TranscriptSegment[], dura
   return Math.min(100, Math.round(42 + density * 20 + hook + question + numbers + position + continuity));
 }
 
-function buildPlanForSegment(input: ViralEditInput, winner: TranscriptSegment, winnerIndex: number, score: number): ViralEditPlan {
-  const clipStart = Math.max(0, winner.start);
+function buildPlanForSegment(input: ViralEditInput, winner: TranscriptSegment, score: number, clipStart = winner.start): ViralEditPlan {
+  const safeStart = Math.max(0, Math.min(clipStart, input.durationSeconds));
   const targetLength = input.format === '16:9' ? 45 : 30;
-  const clipEnd = Math.min(input.durationSeconds, clipStart + targetLength);
-  const hookEnd = Math.min(clipEnd, winner.end, winner.start + 3);
+  const clipEnd = Math.min(input.durationSeconds, safeStart + targetLength);
+  const hookStart = Math.max(safeStart, Math.min(winner.start, clipEnd));
+  const hookEnd = Math.min(clipEnd, Math.max(hookStart, winner.end), hookStart + 3);
   const effects = input.goal === 'education' ? ['motion-zoom', 'beat-flash', 'clean-cut'] : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
   return {
     score,
-    hook: { startSeconds: winner.start, endSeconds: hookEnd },
-    clip: { startSeconds: clipStart, endSeconds: clipEnd },
+    hook: { startSeconds: hookStart, endSeconds: hookEnd },
+    clip: { startSeconds: safeStart, endSeconds: clipEnd },
     subtitle: { style: input.goal === 'music' ? 'karaoke' : 'viral-punch', maxWordsPerLine: 5 },
     effects,
     output: { ...OUTPUTS[input.format], fps: input.format === '16:9' ? 30 : 60 },
@@ -57,20 +58,40 @@ export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
     subtitle: { style: 'viral-punch', maxWordsPerLine: 5 }, effects: [], output: { ...OUTPUTS[input.format], fps: 30 },
   };
   const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
-  return buildPlanForSegment(input, ranked[0].segment, ranked[0].index, ranked[0].score);
+  return buildPlanForSegment(input, ranked[0].segment, ranked[0].score);
 }
 
 export function buildViralEditPlans(input: ViralEditInput & { count?: number }): ViralEditPlan[] {
   if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('duration_seconds_invalid');
   if (!input.transcript.length) return [buildViralEditPlan(input)];
   const requested = Math.min(10, Math.max(1, Math.floor(input.count ?? 5)));
+  const targetLength = input.format === '16:9' ? 45 : 30;
   const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
   const selected: ViralEditPlan[] = [];
+
+  // First pass: preserve the strongest moments while suppressing overlapping clips.
   for (const candidate of ranked) {
     if (selected.length >= requested) break;
-    const plan = buildPlanForSegment(input, candidate.segment, candidate.index, candidate.score);
+    const plan = buildPlanForSegment(input, candidate.segment, candidate.score);
     const overlaps = selected.some(existing => plan.clip.startSeconds < existing.clip.endSeconds && existing.clip.startSeconds < plan.clip.endSeconds);
     if (!overlaps) selected.push(plan);
   }
-  return selected;
+
+  // Fill remaining slots by spreading anchors across the timeline. This prevents a
+  // cluster of high-scoring adjacent transcript segments from limiting a 5–10 batch.
+  if (selected.length < requested && input.durationSeconds >= targetLength) {
+    const slots = requested;
+    for (let slot = 0; slot < slots && selected.length < requested; slot += 1) {
+      const idealStart = Math.min(input.durationSeconds - targetLength, slot * ((input.durationSeconds - targetLength) / Math.max(1, slots - 1)));
+      const candidate = ranked
+        .filter(item => !selected.some(existing => Math.abs(existing.clip.startSeconds - item.segment.start) < targetLength))
+        .sort((a, b) => Math.abs(a.segment.start - idealStart) - Math.abs(b.segment.start - idealStart) || b.score - a.score)[0];
+      if (!candidate) continue;
+      const plan = buildPlanForSegment(input, candidate.segment, candidate.score, idealStart);
+      const overlaps = selected.some(existing => plan.clip.startSeconds < existing.clip.endSeconds && existing.clip.startSeconds < plan.clip.endSeconds);
+      if (!overlaps) selected.push(plan);
+    }
+  }
+
+  return selected.sort((a, b) => b.score - a.score || a.clip.startSeconds - b.clip.startSeconds).slice(0, requested);
 }
