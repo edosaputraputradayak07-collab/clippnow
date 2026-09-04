@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 import { withWorkflow } from 'workflow/next';
+import { YOUTUBE_FRAME_SOURCES } from './lib/security/youtube-frame-policy';
 
 const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
@@ -21,7 +22,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.midtrans.com https://app.sandbox.midtrans.com",
-      "frame-src 'self' https://app.midtrans.com https://app.sandbox.midtrans.com",
+      `frame-src 'self' https://app.midtrans.com https://app.sandbox.midtrans.com ${YOUTUBE_FRAME_SOURCES.join(' ')}`,
       "worker-src 'self' blob:",
     ].join('; '),
   },
