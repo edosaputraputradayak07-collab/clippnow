@@ -3,12 +3,16 @@ import type { ChangeEvent, SyntheticEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatCreditBalance } from '@/lib/billing/credit-display';
+import { getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube-url';
 
 type ClipFormat = '9:16' | '1:1' | '16:9';
+type SourceMode = 'upload' | 'youtube';
 
 export default function CreateStudio({ initialCredits, plan }: { initialCredits: number; plan: string }) {
+  const [sourceMode, setSourceMode] = useState<SourceMode>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
+  const [youtubeLink, setYoutubeLink] = useState('');
   const [duration, setDuration] = useState(0);
   const [format, setFormat] = useState<ClipFormat>('9:16');
   const [credits, setCredits] = useState(initialCredits);
@@ -17,6 +21,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const isOwner = plan === 'owner';
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(youtubeLink);
+  const youtubeValid = isYouTubeUrl(youtubeLink);
 
   useEffect(() => {
     if (!file) {
@@ -36,6 +42,18 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     setStatus('');
     setFile(selected);
     setDuration(0);
+  }
+
+  function selectMode(mode: SourceMode) {
+    setSourceMode(mode);
+    setError('');
+    setStatus('');
+    if (mode === 'youtube') {
+      setFile(null);
+      setDuration(0);
+    } else {
+      setYoutubeLink('');
+    }
   }
 
   function metadata(e: SyntheticEvent<HTMLVideoElement>) {
@@ -109,27 +127,57 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             <div className="mb-5">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">01 / Source</div>
               <h1 className="mt-2 text-2xl font-black sm:text-3xl">Upload video. Biar AI yang cari momennya.</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">ClippNow akan membaca transkrip, mencari bagian paling kuat, menentukan durasi clip, lalu menerapkan subtitle dan efek secara otomatis.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Upload file langsung, atau tempel link YouTube untuk melihat sumbernya sebelum kamu memasukkan video yang berhak kamu gunakan.</p>
             </div>
 
-            {!file ? (
-              <div onClick={() => inputRef.current?.click()} className="flex min-h-[420px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center hover:border-cyan-300/40">
-                <input ref={inputRef} type="file" accept="video/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => selectFile(e.target.files?.[0])} />
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div>
-                <h2 className="mt-6 text-lg font-black">Klik untuk memilih video</h2>
-                <p className="mt-2 text-sm text-slate-600">MP4, MOV, WebM, MKV • maksimal 500 MB</p>
-              </div>
-            ) : (
-              <>
-                <video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full rounded-2xl bg-black object-contain" />
-                <div className="mt-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-bold">{file.name}</div>
-                    <div className="text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div>
-                  </div>
-                  <button onClick={() => { setFile(null); setDuration(0); setStatus(''); }} className="text-xs font-bold text-slate-500">Ganti</button>
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-1">
+              <button onClick={() => selectMode('upload')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'upload' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>📁 Upload Video</button>
+              <button onClick={() => selectMode('youtube')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'youtube' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>🔗 Paste YouTube</button>
+            </div>
+
+            {sourceMode === 'upload' ? (
+              !file ? (
+                <div onClick={() => inputRef.current?.click()} className="flex min-h-[420px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center hover:border-cyan-300/40">
+                  <input ref={inputRef} type="file" accept="video/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => selectFile(e.target.files?.[0])} />
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div>
+                  <h2 className="mt-6 text-lg font-black">Klik untuk memilih video</h2>
+                  <p className="mt-2 text-sm text-slate-600">MP4, MOV, WebM, MKV • maksimal 500 MB</p>
                 </div>
-              </>
+              ) : (
+                <>
+                  <video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full rounded-2xl bg-black object-contain" />
+                  <div className="mt-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold">{file.name}</div>
+                      <div className="text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div>
+                    </div>
+                    <button onClick={() => { setFile(null); setDuration(0); setStatus(''); }} className="text-xs font-bold text-slate-500">Ganti</button>
+                  </div>
+                </>
+              )
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <label className="text-xs font-bold text-slate-400">Link YouTube</label>
+                  <div className="mt-2 flex gap-2">
+                    <input value={youtubeLink} onChange={(e) => { setYoutubeLink(e.target.value); setError(''); }} placeholder="https://www.youtube.com/watch?v=..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-cyan-300/40" />
+                    <button onClick={() => { if (!youtubeValid) setError('Link YouTube tidak valid. Gunakan link youtube.com atau youtu.be.'); }} className="rounded-xl bg-cyan-300 px-4 py-3 text-xs font-black text-slate-950">Preview</button>
+                  </div>
+                  {youtubeLink && !youtubeValid && <p className="mt-2 text-[11px] text-rose-300">Link belum dikenali sebagai URL YouTube.</p>}
+                </div>
+                {youtubeEmbedUrl ? (
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+                    <div className="aspect-video">
+                      <iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center">
+                    <div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, masukkan file video yang kamu miliki atau punya izin untuk digunakan.</p></div>
+                  </div>
+                )}
+                {youtubeEmbedUrl && <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3 text-xs leading-5 text-amber-200/80">Preview YouTube aktif. Vidklipral tidak mengunduh atau mengambil ulang video YouTube secara otomatis. Upload sumber videonya untuk mulai proses AI.</div>}
+              </div>
             )}
           </section>
 
@@ -163,8 +211,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs text-rose-300">{error}</div>}
             {status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">{status}</div>}
 
-            <button disabled={!file || !duration || (!isOwner && credits < 1) || busy} onClick={prepare} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">
-              {busy ? 'AI sedang bekerja…' : !isOwner && credits < 1 ? 'Beli kredit' : 'Buat clip otomatis →'}
+            <button disabled={sourceMode !== 'upload' || !file || !duration || (!isOwner && credits < 1) || busy} onClick={prepare} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">
+              {busy ? 'AI sedang bekerja…' : sourceMode === 'youtube' ? 'Upload sumber untuk mulai →' : !isOwner && credits < 1 ? 'Beli kredit' : 'Buat clip otomatis →'}
             </button>
             <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">{isOwner ? 'Owner: proses clip tidak mengurangi kredit.' : '1 credit = 1 proses clip otomatis.'}</p>
           </aside>
