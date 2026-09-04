@@ -1,5 +1,5 @@
-const CLIPPNOW_SUPABASE_URL = 'https://hailjjuaxatdaiskazgq.supabase.co';
-const CLIPPNOW_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_VhYzxCvRiKsl-maZByhwRA_k_HBsOCZ';
+const CLIPPNOW_SUPABASE_URL = 'https://hwsoqzdqdqsgeswtsjih.supabase.co';
+const CLIPPNOW_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_oPN_Y9ujuDuvvvac9fJA7g_iYmaBV70';
 
 type SupabaseEnv = Record<string, string | undefined>;
 
