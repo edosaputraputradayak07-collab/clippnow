@@ -28,9 +28,9 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen bg-[#05070d] px-5 py-8 text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <a href="/" className="inline-flex items-center gap-2 text-sm font-black">← Clipp<span className="text-cyan-300">Now</span></a>
+        <a href="/" className="inline-flex items-center gap-2 text-sm font-black">← Vid<span className="text-cyan-300">klipral</span></a>
         <div className="mx-auto max-w-2xl py-16 text-center">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">ClippNow Credits</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">Vidklipral Credits</div>
           <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-6xl">Pilih paket. Bayar. Langsung bikin clip.</h1>
           <p className="mt-5 text-sm leading-7 text-slate-500 sm:text-base">Setiap paket menambah kredit ke akun. Kredit hanya bertambah setelah payment gateway mengonfirmasi pembayaran berhasil.</p>
         </div>
