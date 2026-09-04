@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
-import { isOwnerUser } from '@/lib/auth/owner';
 import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/defense';
 import { sameOrigin, noStoreHeaders } from '@/lib/security/request';
 import { buildViralEditPlans, type ViralGoal } from '@/lib/ai/viral-edit-plan';
@@ -32,10 +31,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { data: project, error: projectError } = await supabase.from('projects').select('id,user_id,name,original_filename,source_path,start_seconds,end_seconds,format').eq('id', id).eq('user_id', user.id).single();
   if (projectError || !project) return NextResponse.json({ error: 'Project tidak ditemukan.' }, { status: 404, headers: noStoreHeaders() });
   const admin = createAdminClient();
-  const owner = isOwnerUser(user.email);
-  if (count > 1 && !owner) {
-    const { data: profile } = await admin.from('profiles').select('credits').eq('id', user.id).single();
-    if (!profile || Number(profile.credits) < count) return NextResponse.json({ error: `Batch ${count} video membutuhkan ${count} kredit. Kredit kamu belum cukup.` }, { status: 402, headers: noStoreHeaders() });
+  const { data: profile } = await admin.from('profiles').select('plan,credits').eq('id', user.id).single();
+  const owner = profile?.plan === 'owner';
+  // The initial project creation already reserves one credit. Only the additional
+  // batch projects need new reservations here.
+  const additionalCount = Math.max(0, count - 1);
+  if (additionalCount > 0 && !owner) {
+    if (!profile || Number(profile.credits) < additionalCount) return NextResponse.json({ error: `Batch ${count} video membutuhkan ${count} kredit. Setelah clip pertama dibuat, kamu membutuhkan ${additionalCount} kredit lagi.` }, { status: 402, headers: noStoreHeaders() });
   }
   const { data: source, error: sourceError } = await admin.storage.from(BUCKET).download(project.source_path);
   if (sourceError || !source) return NextResponse.json({ error: 'Video sumber tidak dapat dibaca.' }, { status: 404, headers: noStoreHeaders() });
