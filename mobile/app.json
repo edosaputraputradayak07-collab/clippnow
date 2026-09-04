@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "ClippNow",
-    "slug": "clippnow",
+    "name": "Vidklipral",
+    "slug": "vidklipral",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "clippnow",
+    "scheme": "vidklipral",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -24,15 +24,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "ClippNow needs access to your videos so you can create clips.",
-          "cameraPermission": "ClippNow needs camera access when you choose to record a clip.",
+          "photosPermission": "Vidklipral needs access to your videos so you can create clips.",
+          "cameraPermission": "Vidklipral needs camera access when you choose to record a clip.",
           "microphonePermission": false
         }
       ],
       [
         "expo-secure-store",
         {
-          "faceIDPermission": "Allow ClippNow to securely access your saved session."
+          "faceIDPermission": "Allow Vidklipral to securely access your saved session."
         }
       ],
       [
