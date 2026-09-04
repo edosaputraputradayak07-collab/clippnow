@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatCreditBalance } from '@/lib/billing/credit-display';
 import { getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube-url';
+import { getCreateStudioAction } from '@/lib/create-studio-action';
 
 type ClipFormat = '9:16' | '1:1' | '16:9';
 type SourceMode = 'upload' | 'youtube';
@@ -110,6 +111,18 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     }
   }
 
+  function primaryAction() {
+    const action = getCreateStudioAction({ sourceMode, hasFile: Boolean(file), hasDuration: Boolean(duration), isOwner, credits, batchCount, busy });
+    if (action === 'pick-source') {
+      openVideoPicker();
+      return;
+    }
+    void prepare();
+  }
+
+  const primaryActionState = getCreateStudioAction({ sourceMode, hasFile: Boolean(file), hasDuration: Boolean(duration), isOwner, credits, batchCount, busy });
+  const primaryDisabled = busy || (!isOwner && credits < batchCount && primaryActionState === 'prepare');
+
   return (
     <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
@@ -135,7 +148,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             <div className="mt-5 space-y-3">{[['01', 'Transcribe', 'AI membaca ucapan dan timing.'], ['02', 'Find viral moments', `AI memilih ${batchCount} bagian paling kuat.`], ['03', 'Edit', 'Subtitle + motion + punch effect.'], ['04', 'Render', 'Setiap momen jadi MP4 terpisah.']].map(([number, title, description]) => <div key={number} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex items-center gap-3"><span className="text-[9px] font-black text-cyan-300">{number}</span><span className="text-sm font-black">{title}</span></div><p className="mt-1 pl-7 text-xs leading-5 text-slate-600">{description}</p></div>)}</div>
             <div className="mt-5"><div className="mb-2 text-xs font-bold text-slate-500">Format output</div><div className="grid grid-cols-3 gap-2">{(['9:16', '1:1', '16:9'] as ClipFormat[]).map(value => <button type="button" key={value} onClick={() => setFormat(value)} className={`rounded-xl border px-2 py-3 text-xs font-black ${format === value ? 'border-cyan-300 bg-cyan-300/10 text-cyan-200' : 'border-white/10 text-slate-600'}`}>{value}</button>)}</div></div>
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs text-rose-300">{error}</div>}{status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">{status}</div>}
-            <button type="button" disabled={sourceMode !== 'upload' || !file || !duration || (!isOwner && credits < batchCount) || busy} onClick={prepare} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">{busy ? 'AI memilih banyak momen…' : sourceMode === 'youtube' ? 'Pilih sumber video untuk mulai →' : !isOwner && credits < batchCount ? 'Kredit tidak cukup' : 'Buat video viral →'}</button><p className="mt-3 text-center text-[10px] leading-4 text-slate-700">{isOwner ? 'Owner: proses batch tidak mengurangi kredit.' : 'Setiap clip memakai 1 credit.'}</p>
+            <button type="button" disabled={primaryDisabled} onClick={primaryAction} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">{busy ? 'AI memilih banyak momen…' : primaryActionState === 'pick-source' ? '📤 Pilih sumber video untuk mulai →' : !isOwner && credits < batchCount ? 'Kredit tidak cukup' : 'Buat video viral →'}</button><p className="mt-3 text-center text-[10px] leading-4 text-slate-700">{isOwner ? 'Owner: proses batch tidak mengurangi kredit.' : 'Setiap clip memakai 1 credit.'}</p>
           </aside>
         </div>
       </div>
