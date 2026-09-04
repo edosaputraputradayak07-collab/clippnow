@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
-import { isOwnerUser } from '@/lib/auth/owner';
 import { logSecurityEvent, getClientIp, securityGuard } from '@/lib/security/defense';
 import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 import { validateRenderRequest } from '@/lib/rendering/validation';
@@ -34,7 +33,8 @@ export async function POST(request: Request) {
 
   const { format, start_seconds: start, end_seconds: end } = validation.value;
   const admin = createAdminClient();
-  const owner = isOwnerUser(user.email);
+  const { data: profile } = await admin.from('profiles').select('plan').eq('id', user.id).single();
+  const owner = profile?.plan === 'owner';
   const creditReference = crypto.randomUUID();
   const { data: project, error: projectError } = await supabase.from('projects').insert({ user_id: user.id, name, original_filename: typeof body.original_filename === 'string' ? body.original_filename.slice(0, 255) : null, start_seconds: start, end_seconds: end, format, source_path: sourcePath, status: 'queued', credit_reference: creditReference }).select('id,credit_reference').single();
   if (projectError || !project) return NextResponse.json({ error: 'Gagal membuat project.' }, { status: 500, headers: noStoreHeaders() });
