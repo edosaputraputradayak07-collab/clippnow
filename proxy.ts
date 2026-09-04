@@ -5,8 +5,9 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
+  const protectedRoute = pathname.startsWith('/dashboard');
 
-  if (!pathname.startsWith('/dashboard')) return response;
+  if (!protectedRoute) return response;
 
   const { url, publishableKey } = getSupabaseConfig();
   const supabase = createServerClient(url, publishableKey, {
