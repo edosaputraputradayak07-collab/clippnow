@@ -114,7 +114,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="flex items-center justify-between border-b border-white/10 pb-5">
-          <div><a href="/dashboard" className="text-xl font-black">Clipp<span className="text-cyan-300">Now</span></a><p className="mt-1 text-[9px] font-bold uppercase tracking-[0.25em] text-slate-600">AI Viral Creator Studio</p></div>
+          <div><a href="/dashboard" className="text-xl font-black">Vid<span className="text-cyan-300">klipral</span></a><p className="mt-1 text-[9px] font-bold uppercase tracking-[0.25em] text-slate-600">AI Viral Creator Studio</p></div>
           <div className="flex gap-2"><span className="hidden rounded-full border border-white/10 px-3 py-2 text-[10px] font-bold text-slate-500 sm:inline">{plan.toUpperCase()}</span><span className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs font-black text-cyan-200">{formatCreditBalance(credits, plan)} credits</span></div>
         </header>
         <div className="grid gap-5 py-8 lg:grid-cols-[1.35fr_.65fr]">
