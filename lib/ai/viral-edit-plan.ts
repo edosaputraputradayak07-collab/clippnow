@@ -67,31 +67,22 @@ export function buildViralEditPlans(input: ViralEditInput & { count?: number }):
   const requested = Math.min(10, Math.max(1, Math.floor(input.count ?? 5)));
   const targetLength = input.format === '16:9' ? 45 : 30;
   const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
-  const selected: ViralEditPlan[] = [];
 
-  // First pass: preserve the strongest moments while suppressing overlapping clips.
-  for (const candidate of ranked) {
-    if (selected.length >= requested) break;
-    const plan = buildPlanForSegment(input, candidate.segment, candidate.score);
-    const overlaps = selected.some(existing => plan.clip.startSeconds < existing.clip.endSeconds && existing.clip.startSeconds < plan.clip.endSeconds);
-    if (!overlaps) selected.push(plan);
+  // Use evenly distributed non-overlapping slots for a requested 5–10 batch.
+  // The transcript segment nearest each slot supplies the hook and viral score,
+  // while the slot itself guarantees that every requested clip has its own range.
+  const maxPossible = Math.max(1, Math.floor(input.durationSeconds / targetLength));
+  const count = Math.min(requested, maxPossible);
+  const plans: ViralEditPlan[] = [];
+  const maxStart = Math.max(0, input.durationSeconds - targetLength);
+  for (let slot = 0; slot < count; slot += 1) {
+    const idealStart = count === 1 ? 0 : (slot * maxStart) / (count - 1);
+    const winner = ranked
+      .map(item => ({ ...item, distance: Math.abs(item.segment.start - idealStart) }))
+      .sort((a, b) => a.distance - b.distance || b.score - a.score)[0];
+    if (!winner) continue;
+    plans.push(buildPlanForSegment(input, winner.segment, winner.score, idealStart));
   }
 
-  // Fill remaining slots by spreading anchors across the timeline. This prevents a
-  // cluster of high-scoring adjacent transcript segments from limiting a 5–10 batch.
-  if (selected.length < requested && input.durationSeconds >= targetLength) {
-    const slots = requested;
-    for (let slot = 0; slot < slots && selected.length < requested; slot += 1) {
-      const idealStart = Math.min(input.durationSeconds - targetLength, slot * ((input.durationSeconds - targetLength) / Math.max(1, slots - 1)));
-      const candidate = ranked
-        .filter(item => !selected.some(existing => Math.abs(existing.clip.startSeconds - item.segment.start) < targetLength))
-        .sort((a, b) => Math.abs(a.segment.start - idealStart) - Math.abs(b.segment.start - idealStart) || b.score - a.score)[0];
-      if (!candidate) continue;
-      const plan = buildPlanForSegment(input, candidate.segment, candidate.score, idealStart);
-      const overlaps = selected.some(existing => plan.clip.startSeconds < existing.clip.endSeconds && existing.clip.startSeconds < plan.clip.endSeconds);
-      if (!overlaps) selected.push(plan);
-    }
-  }
-
-  return selected.sort((a, b) => b.score - a.score || a.clip.startSeconds - b.clip.startSeconds).slice(0, requested);
+  return plans.sort((a, b) => b.score - a.score || a.clip.startSeconds - b.clip.startSeconds).slice(0, requested);
 }
