@@ -2,12 +2,13 @@
 
 import { FormEvent, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { getLoginErrorMessage } from '@/lib/auth/login-message';
 import { authExperience } from '@/lib/ui/marketing-experience';
 
 export default function LoginPage() {
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
   const [error, setError] = useState(''); const [loading, setLoading] = useState(false); const [socialLoading, setSocialLoading] = useState('');
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setLoading(true); setError(''); const supabase = createClient(); const { error: signInError } = await supabase.auth.signInWithPassword({ email, password }); if (signInError) { setError('Email atau password tidak benar.'); setLoading(false); return; } window.location.href = '/dashboard'; }
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setLoading(true); setError(''); const supabase = createClient(); const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); if (signInError) { setError(getLoginErrorMessage(signInError)); setLoading(false); return; } window.location.href = '/dashboard'; }
   async function signInWithProvider(provider: 'google' | 'facebook') { setSocialLoading(provider); setError(''); const supabase = createClient(); const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` } }); if (oauthError) { setError(`Login ${provider === 'google' ? 'Google' : 'Facebook'} belum tersedia. Aktifkan provider di Supabase Auth.`); setSocialLoading(''); } }
   function signInWithTikTok() { setError('Login TikTok sedang disiapkan sebagai OAuth khusus Vidklipral. Untuk keamanan, aktifkan provider TikTok terlebih dahulu.'); }
   return (
