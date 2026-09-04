@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getProxySupabaseConfig } from '@/lib/supabase/proxy-config';
+import { getSupabaseConfig } from '@/lib/supabase/config';
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -9,7 +9,7 @@ export async function proxy(request: NextRequest) {
 
   if (!protectedRoute) return response;
 
-  const { url, publishableKey } = getProxySupabaseConfig();
+  const { url, publishableKey } = getSupabaseConfig();
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
