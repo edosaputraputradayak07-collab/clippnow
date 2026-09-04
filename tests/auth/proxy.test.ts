@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 describe('Supabase auth proxy boundaries', () => {
   it('does not validate a user session on public auth pages', () => {
     const source = readFileSync(path.join(process.cwd(), 'proxy.ts'), 'utf8');
-    expect(source).toContain("if (!pathname.startsWith('/dashboard')) return response;");
+    expect(source).toContain("const protectedRoute = pathname.startsWith('/dashboard');");
+    expect(source).toContain("if (!protectedRoute) return response;");
     expect(source).toContain("matcher: ['/dashboard/:path*']");
   });
 
