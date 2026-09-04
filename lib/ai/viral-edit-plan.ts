@@ -36,12 +36,8 @@ function segmentScore(segment: TranscriptSegment, all: TranscriptSegment[], dura
 
 function buildPlanForSegment(input: ViralEditInput, winner: TranscriptSegment, winnerIndex: number, score: number): ViralEditPlan {
   const clipStart = Math.max(0, winner.start);
-  const targetLength = input.format === '16:9' ? 45 : 35;
-  let clipEnd = Math.min(input.durationSeconds, clipStart + targetLength);
-  const nextSegments = input.transcript.slice(winnerIndex + 1);
-  const naturalEnd = nextSegments.find(s => s.start >= clipStart + 18 && s.end <= clipStart + targetLength)?.end;
-  if (naturalEnd) clipEnd = Math.min(input.durationSeconds, naturalEnd + 1.5);
-  if (clipEnd - clipStart < 8) clipEnd = Math.min(input.durationSeconds, clipStart + Math.min(targetLength, 15));
+  const targetLength = input.format === '16:9' ? 45 : 30;
+  const clipEnd = Math.min(input.durationSeconds, clipStart + targetLength);
   const hookEnd = Math.min(clipEnd, winner.end, winner.start + 3);
   const effects = input.goal === 'education' ? ['motion-zoom', 'beat-flash', 'clean-cut'] : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
   return {
