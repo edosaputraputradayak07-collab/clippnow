@@ -34,18 +34,7 @@ function segmentScore(segment: TranscriptSegment, all: TranscriptSegment[], dura
   return Math.min(100, Math.round(42 + density * 20 + hook + question + numbers + position + continuity));
 }
 
-export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
-  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('duration_seconds_invalid');
-  if (!input.transcript.length) return {
-    score: 0, hook: { startSeconds: 0, endSeconds: 0 }, clip: { startSeconds: 0, endSeconds: input.durationSeconds },
-    subtitle: { style: 'viral-punch', maxWordsPerLine: 5 }, effects: [], output: { ...OUTPUTS[input.format], fps: 30 },
-  };
-
-  const ranked = input.transcript
-    .map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) }))
-    .sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
-  const winner = ranked[0].segment;
-  const winnerIndex = ranked[0].index;
+function buildPlanForSegment(input: ViralEditInput, winner: TranscriptSegment, winnerIndex: number, score: number): ViralEditPlan {
   const clipStart = Math.max(0, winner.start);
   const targetLength = input.format === '16:9' ? 45 : 35;
   let clipEnd = Math.min(input.durationSeconds, clipStart + targetLength);
@@ -53,18 +42,39 @@ export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
   const naturalEnd = nextSegments.find(s => s.start >= clipStart + 18 && s.end <= clipStart + targetLength)?.end;
   if (naturalEnd) clipEnd = Math.min(input.durationSeconds, naturalEnd + 1.5);
   if (clipEnd - clipStart < 8) clipEnd = Math.min(input.durationSeconds, clipStart + Math.min(targetLength, 15));
-
   const hookEnd = Math.min(clipEnd, winner.end, winner.start + 3);
-  const effects = input.goal === 'education'
-    ? ['motion-zoom', 'beat-flash', 'clean-cut']
-    : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
-
+  const effects = input.goal === 'education' ? ['motion-zoom', 'beat-flash', 'clean-cut'] : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
   return {
-    score: ranked[0].score,
+    score,
     hook: { startSeconds: winner.start, endSeconds: hookEnd },
     clip: { startSeconds: clipStart, endSeconds: clipEnd },
     subtitle: { style: input.goal === 'music' ? 'karaoke' : 'viral-punch', maxWordsPerLine: 5 },
     effects,
     output: { ...OUTPUTS[input.format], fps: input.format === '16:9' ? 30 : 60 },
   };
+}
+
+export function buildViralEditPlan(input: ViralEditInput): ViralEditPlan {
+  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('duration_seconds_invalid');
+  if (!input.transcript.length) return {
+    score: 0, hook: { startSeconds: 0, endSeconds: 0 }, clip: { startSeconds: 0, endSeconds: input.durationSeconds },
+    subtitle: { style: 'viral-punch', maxWordsPerLine: 5 }, effects: [], output: { ...OUTPUTS[input.format], fps: 30 },
+  };
+  const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
+  return buildPlanForSegment(input, ranked[0].segment, ranked[0].index, ranked[0].score);
+}
+
+export function buildViralEditPlans(input: ViralEditInput & { count?: number }): ViralEditPlan[] {
+  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('duration_seconds_invalid');
+  if (!input.transcript.length) return [buildViralEditPlan(input)];
+  const requested = Math.min(10, Math.max(1, Math.floor(input.count ?? 5)));
+  const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
+  const selected: ViralEditPlan[] = [];
+  for (const candidate of ranked) {
+    if (selected.length >= requested) break;
+    const plan = buildPlanForSegment(input, candidate.segment, candidate.index, candidate.score);
+    const overlaps = selected.some(existing => plan.clip.startSeconds < existing.clip.endSeconds && existing.clip.startSeconds < plan.clip.endSeconds);
+    if (!overlaps) selected.push(plan);
+  }
+  return selected;
 }
