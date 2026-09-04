@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChangeEvent, SyntheticEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatCreditBalance } from '@/lib/billing/credit-display';
 import { getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube-url';
@@ -21,6 +21,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const pickerRef = useRef<HTMLInputElement>(null);
   const isOwner = plan === 'owner';
   const youtubeEmbedUrl = getYouTubeEmbedUrl(youtubeLink);
   const youtubeValid = isYouTubeUrl(youtubeLink);
@@ -46,12 +47,15 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     setDuration(0);
   }
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    selectFile(event.target.files?.[0]);
+  function openVideoPicker() {
+    if (pickerRef.current) {
+      pickerRef.current.value = '';
+      pickerRef.current.click();
+    }
   }
 
-  function resetFilePicker(event: SyntheticEvent<HTMLInputElement>) {
-    event.currentTarget.value = '';
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    selectFile(event.target.files?.[0]);
   }
 
   function selectMode(mode: SourceMode) {
@@ -106,9 +110,6 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     }
   }
 
-  const pickerLabel = 'relative inline-flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 active:scale-[0.99]';
-  const pickerInput = 'absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0';
-
   return (
     <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
@@ -120,10 +121,10 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.025] p-4 sm:p-5">
             <div className="mb-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">01 / Source</div><h1 className="mt-2 text-2xl font-black sm:text-3xl">Upload video. Biar AI yang cari momennya.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Upload file langsung, atau tempel link YouTube untuk melihat sumbernya sebelum kamu memasukkan video yang berhak kamu gunakan.</p></div>
             <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-1"><button type="button" onClick={() => selectMode('upload')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'upload' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>📁 Upload Video</button><button type="button" onClick={() => selectMode('youtube')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'youtube' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>🔗 Paste YouTube</button></div>
-            {sourceMode === 'upload' ? (!file ? <label className="relative flex min-h-[420px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center hover:border-cyan-300/40 active:border-cyan-300/60"><input type="file" accept="video/*" className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" onClick={resetFilePicker} onChange={onFileChange} /><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div><h2 className="mt-6 text-lg font-black">Klik untuk memilih video</h2><p className="mt-2 text-sm text-slate-600">MP4, MOV, WebM, MKV • maksimal 500 MB</p></label> : <><video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full rounded-2xl bg-black object-contain"/><div className="mt-4 flex items-center justify-between"><div><div className="text-sm font-bold">{file.name}</div><div className="text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div></div><label className="relative cursor-pointer text-xs font-bold text-cyan-300"><input type="file" accept="video/*" className={pickerInput} onClick={resetFilePicker} onChange={onFileChange} />Ganti video</label></div></>) : (
+            {sourceMode === 'upload' ? (!file ? <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><input ref={pickerRef} type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="sr-only" onChange={onFileChange} /><button type="button" onClick={openVideoPicker} className="w-full max-w-md rounded-2xl border border-cyan-300/30 bg-cyan-300/[0.08] px-6 py-7 active:scale-[0.99]"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</div><h2 className="mt-5 text-lg font-black">Pilih Video dari HP</h2><p className="mt-2 text-sm text-slate-500">MP4, MOV, WebM, MKV • maksimal 500 MB</p></button></div> : <><video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full rounded-2xl bg-black object-contain"/><div className="mt-4 flex items-center justify-between"><div><div className="text-sm font-bold">{file.name}</div><div className="text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div></div><button type="button" onClick={openVideoPicker} className="rounded-xl border border-cyan-300/20 px-4 py-3 text-xs font-bold text-cyan-300">Ganti video</button></div></>) : (
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><label className="text-xs font-bold text-slate-400">Link YouTube</label><div className="mt-2 flex gap-2"><input value={youtubeLink} onChange={(event) => { setYoutubeLink(event.target.value); setError(''); }} placeholder="https://www.youtube.com/watch?v=..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-cyan-300/40"/><button type="button" onClick={() => { if (!youtubeValid) setError('Link YouTube tidak valid. Gunakan link youtube.com atau youtu.be.'); }} className="rounded-xl bg-cyan-300 px-4 py-3 text-xs font-black text-slate-950">Preview</button></div>{youtubeLink && !youtubeValid && <p className="mt-2 text-[11px] text-rose-300">Link belum dikenali sebagai URL YouTube.</p>}</div>
-                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><label className={`${pickerLabel} m-3 w-[calc(100%-1.5rem)]`}><input type="file" accept="video/*" className={pickerInput} onClick={resetFilePicker} onChange={onFileChange} />📤 Pilih video sumber dari HP untuk diproses AI →</label></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, pilih file video yang kamu miliki atau punya izin untuk digunakan.</p></div></div>}
+                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><input ref={pickerRef} type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="sr-only" onChange={onFileChange} /><button type="button" onClick={openVideoPicker} className="m-3 w-[calc(100%-1.5rem)] rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 active:scale-[0.99]">📤 Pilih video sumber dari HP untuk diproses AI →</button></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, pilih file video yang kamu miliki atau punya izin untuk digunakan.</p></div></div>}
                 {youtubeEmbedUrl && <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3 text-xs leading-5 text-amber-200/80">Preview YouTube aktif. Vidklipral tidak mengunduh atau mengambil ulang video YouTube secara otomatis. Pilih sumber video dari HP untuk mulai proses AI.</div>}
               </div>
             )}
