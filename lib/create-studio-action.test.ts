@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCreateStudioAction, getCreateStudioStepStates } from './create-studio-action';
+import { getCreateStudioAction, getCreateStudioPrimaryControl, getCreateStudioStepStates } from './create-studio-action';
 
 describe('getCreateStudioAction', () => {
   it('opens the native picker when no source video is selected', () => {
@@ -10,6 +10,17 @@ describe('getCreateStudioAction', () => {
   it('starts processing only after a video duration is ready and credits are available', () => {
     expect(getCreateStudioAction({ sourceMode: 'upload', hasFile: true, hasDuration: true, isOwner: true, credits: 0, batchCount: 5, busy: false })).toBe('prepare');
     expect(getCreateStudioAction({ sourceMode: 'upload', hasFile: true, hasDuration: true, isOwner: false, credits: 5, batchCount: 5, busy: false })).toBe('prepare');
+  });
+});
+
+describe('getCreateStudioPrimaryControl', () => {
+  it('keeps the source-picker CTA enabled and native when no video is selected', () => {
+    expect(getCreateStudioPrimaryControl('pick-source', false)).toEqual({ kind: 'picker', disabled: false });
+  });
+
+  it('uses the processing button only when a source is ready', () => {
+    expect(getCreateStudioPrimaryControl('prepare', false)).toEqual({ kind: 'process', disabled: false });
+    expect(getCreateStudioPrimaryControl('prepare', true)).toEqual({ kind: 'process', disabled: true });
   });
 });
 
