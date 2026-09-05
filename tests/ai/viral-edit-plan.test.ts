@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildViralEditPlan } from '../../lib/ai/viral-edit-plan';
 
 describe('buildViralEditPlan', () => {
-  it('creates a short-form viral plan with hook, subtitles, and effects', () => {
+  it('creates a short-form viral plan with hook, subtitles, and contextual effects', () => {
     const plan = buildViralEditPlan({
       durationSeconds: 42,
       format: '9:16',
@@ -17,8 +17,8 @@ describe('buildViralEditPlan', () => {
     expect(plan.score).toBeGreaterThanOrEqual(70);
     expect(plan.hook.endSeconds - plan.hook.startSeconds).toBeLessThanOrEqual(3);
     expect(plan.subtitle.style).toBe('viral-punch');
-    expect(plan.effects).toContain('motion-zoom');
-    expect(plan.effects).toContain('beat-flash');
+    expect(plan.effects).toEqual(['motion-zoom', 'jump-cut']);
+    expect(plan.effects).not.toContain('beat-flash');
     expect(plan.output.width).toBe(1080);
     expect(plan.output.height).toBe(1920);
   });
