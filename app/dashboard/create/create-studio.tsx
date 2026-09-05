@@ -5,10 +5,17 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatCreditBalance } from '@/lib/billing/credit-display';
 import { getYouTubeEmbedUrl, isYouTubeUrl } from '@/lib/youtube-url';
-import { getCreateStudioAction } from '@/lib/create-studio-action';
+import { getCreateStudioAction, getCreateStudioStepStates, type CreateStudioStepStage } from '@/lib/create-studio-action';
 
 type ClipFormat = '9:16' | '1:1' | '16:9';
 type SourceMode = 'upload' | 'youtube';
+
+const PIPELINE_STEPS = [
+  ['01', 'Transcribe', 'AI membaca ucapan dan timing.'],
+  ['02', 'Find viral moments', 'AI memilih momen terkuat dari video.'],
+  ['03', 'Edit', 'Subtitle + motion + punch effect.'],
+  ['04', 'Render', 'Setiap momen jadi MP4 terpisah.'],
+] as const;
 
 export default function CreateStudio({ initialCredits, plan }: { initialCredits: number; plan: string }) {
   const [sourceMode, setSourceMode] = useState<SourceMode>('upload');
@@ -22,9 +29,11 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pipelineStage, setPipelineStage] = useState<CreateStudioStepStage>('idle');
   const isOwner = plan === 'owner';
   const youtubeEmbedUrl = getYouTubeEmbedUrl(youtubeLink);
   const youtubeValid = isYouTubeUrl(youtubeLink);
+  const pipelineStates = getCreateStudioStepStates(pipelineStage);
 
   useEffect(() => {
     if (!file) { setUrl(''); return; }
@@ -41,6 +50,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     if (selected.size > 500 * 1024 * 1024) return setError('Ukuran video maksimal 500 MB.');
     setError('');
     setStatus('');
+    setPipelineStage('idle');
     setFile(selected);
     setSourceMode('upload');
     setYoutubeLink('');
@@ -55,6 +65,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     setSourceMode(mode);
     setError('');
     setStatus('');
+    setPipelineStage('idle');
     if (mode === 'youtube') { setFile(null); setDuration(0); }
     else setYoutubeLink('');
   }
@@ -68,7 +79,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
     if (!file || !duration || (!isOwner && credits < batchCount) || busy) return;
     setBusy(true);
     setError('');
-    setStatus(`Mengunggah video untuk membuat ${batchCount} clip viral…`);
+    setPipelineStage('transcribe');
+    setStatus('01/04 • AI membaca ucapan dan timing…');
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -77,6 +89,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
       const sourcePath = `${user.id}/${crypto.randomUUID()}-${safe}`;
       const upload = await supabase.storage.from('clippnow-videos').upload(sourcePath, file, { contentType: file.type, upsert: false });
       if (upload.error) throw new Error(`Upload gagal: ${upload.error.message}`);
+      setPipelineStage('viral');
+      setStatus(`02/04 • AI mencari ${batchCount} momen paling kuat…`);
       const response = await fetch('/api/projects', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: file.name.replace(/\.[^.]+$/, ''), original_filename: file.name, source_path: sourcePath, start_seconds: 0, end_seconds: duration, format }),
@@ -87,7 +101,6 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
         throw new Error(data.error ?? 'Project gagal dibuat.');
       }
       if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining);
-      setStatus(`AI sedang mencari ${batchCount} momen paling viral…`);
       const aiResponse = await fetch(`/api/projects/${data.project_id}/ai`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: 'tiktok', language: 'id', count: batchCount }),
@@ -95,22 +108,26 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
       const aiData = await aiResponse.json().catch(() => ({}));
       if (!aiResponse.ok) throw new Error(aiData.error ?? 'Analisis AI gagal.');
       const ids = Array.isArray(aiData.project_ids) ? aiData.project_ids.filter((id: unknown): id is string => typeof id === 'string') : [data.project_id];
-      setStatus(`${ids.length} clip ditemukan. Membuka hasil…`);
+      setPipelineStage('edit');
+      setStatus(`03/04 • ${ids.length} clip siap diedit otomatis…`);
+      setPipelineStage('render');
+      setStatus(`04/04 • Menyiapkan ${ids.length} hasil untuk rendering…`);
       window.location.assign(`/dashboard/projects/${data.project_id}?batch=${encodeURIComponent(ids.join(','))}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Terjadi kesalahan. Coba lagi.');
+      setPipelineStage('idle');
       setBusy(false);
     }
   }
 
   function primaryAction() {
     const action = getCreateStudioAction({ sourceMode, hasFile: Boolean(file), hasDuration: Boolean(duration), isOwner, credits, batchCount, busy });
-    if (action === 'pick-source') return;
+    if (action !== 'prepare') return;
     void prepare();
   }
 
   const primaryActionState = getCreateStudioAction({ sourceMode, hasFile: Boolean(file), hasDuration: Boolean(duration), isOwner, credits, batchCount, busy });
-  const primaryDisabled = busy || (!isOwner && credits < batchCount && primaryActionState === 'prepare');
+  const primaryDisabled = busy || !file || !duration || (!isOwner && credits < batchCount);
 
   return (
     <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white sm:px-8">
@@ -126,24 +143,36 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             {sourceMode === 'upload' ? (!file ? <label className="relative flex min-h-[420px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><input type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={onFileChange} /><span className="pointer-events-none w-full max-w-md rounded-2xl border border-cyan-300/30 bg-cyan-300/[0.08] px-6 py-7"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">▶</span><span className="mt-5 block text-lg font-black">Pilih Video dari HP</span><span className="mt-2 block text-sm text-slate-500">MP4, MOV, WebM, MKV • maksimal 500 MB</span></span></label> : <><video src={url} controls onLoadedMetadata={metadata} className="aspect-video w-full rounded-2xl bg-black object-contain"/><div className="mt-4 flex items-center justify-between"><div><div className="text-sm font-bold">{file.name}</div><div className="text-xs text-slate-600">{formatSize(file.size)} • {formatTime(duration)}</div></div><label className="relative cursor-pointer rounded-xl border border-cyan-300/20 px-4 py-3 text-xs font-bold text-cyan-300"><input type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={onFileChange} />Ganti video</label></div></>) : (
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><label className="text-xs font-bold text-slate-400">Link YouTube</label><div className="mt-2 flex gap-2"><input value={youtubeLink} onChange={(event) => { setYoutubeLink(event.target.value); setError(''); }} placeholder="https://www.youtube.com/watch?v=..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-cyan-300/40"/><button type="button" onClick={() => { if (!youtubeValid) setError('Link YouTube tidak valid. Gunakan link youtube.com atau youtu.be.'); }} className="rounded-xl bg-cyan-300 px-4 py-3 text-xs font-black text-slate-950">Preview</button></div>{youtubeLink && !youtubeValid && <p className="mt-2 text-[11px] text-rose-300">Link belum dikenali sebagai URL YouTube.</p>}</div>
-                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><label className="relative m-3 block cursor-pointer"><input type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={onFileChange} /><span className="block w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-center text-sm font-black text-slate-950">📤 Pilih video sumber dari HP untuk diproses AI →</span></label></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, pilih file video yang kamu miliki atau punya izin untuk digunakan.</p></div></div>}
-                {youtubeEmbedUrl && <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3 text-xs leading-5 text-amber-200/80">Preview YouTube aktif. Vidklipral tidak mengunduh atau mengambil ulang video YouTube secara otomatis. Pilih sumber video dari HP untuk mulai proses AI.</div>}
+                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><div className="p-3"><PipelinePreview states={pipelineStates} stage={pipelineStage} /></div></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, pilih file video yang kamu miliki atau punya izin untuk digunakan.</p></div></div>}
+                {youtubeEmbedUrl && <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3 text-xs leading-5 text-amber-200/80">Preview YouTube aktif. Vidklipral tidak mengunduh atau mengambil ulang video YouTube secara otomatis. Untuk proses AI dan render, gunakan file video yang kamu miliki atau berhak gunakan.</div>}
               </div>
             )}
           </section>
           <aside className="rounded-[2rem] border border-white/10 bg-white/[0.025] p-5 sm:p-6">
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">02 / AI Viral Engine</div><h2 className="mt-2 text-2xl font-black">Bikin banyak clip sekaligus.</h2><p className="mt-2 text-sm leading-6 text-slate-500">AI memilih beberapa momen berbeda dari satu video, lalu masing-masing dibuat menjadi video pendek.</p>
             <div className="mt-6 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4"><div className="text-xs font-black text-white">Jumlah hasil</div><div className="mt-3 grid grid-cols-3 gap-2">{[5, 8, 10].map(value => <button type="button" key={value} onClick={() => setBatchCount(value)} className={`rounded-xl border px-3 py-3 text-sm font-black ${batchCount === value ? 'border-cyan-300 bg-cyan-300/10 text-cyan-200' : 'border-white/10 text-slate-500'}`}>{value} video</button>)}</div><p className="mt-2 text-[10px] text-slate-600">{isOwner ? 'Owner: batch tidak mengurangi kredit.' : `${batchCount} video = ${batchCount} kredit.`}</p></div>
-            <div className="mt-5 space-y-3">{[['01', 'Transcribe', 'AI membaca ucapan dan timing.'], ['02', 'Find viral moments', `AI memilih ${batchCount} bagian paling kuat.`], ['03', 'Edit', 'Subtitle + motion + punch effect.'], ['04', 'Render', 'Setiap momen jadi MP4 terpisah.']].map(([number, title, description]) => <div key={number} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex items-center gap-3"><span className="text-[9px] font-black text-cyan-300">{number}</span><span className="text-sm font-black">{title}</span></div><p className="mt-1 pl-7 text-xs leading-5 text-slate-600">{description}</p></div>)}</div>
+            <div className="mt-5 space-y-3">{PIPELINE_STEPS.map(([number, title, description]) => <div key={number} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="flex items-center gap-3"><span className="text-[9px] font-black text-cyan-300">{number}</span><span className="text-sm font-black">{title}</span></div><p className="mt-1 pl-7 text-xs leading-5 text-slate-600">{number === '02' ? `${description.replace('momen terkuat', `${batchCount} momen terkuat`)}` : description}</p></div>)}</div>
             <div className="mt-5"><div className="mb-2 text-xs font-bold text-slate-500">Format output</div><div className="grid grid-cols-3 gap-2">{(['9:16', '1:1', '16:9'] as ClipFormat[]).map(value => <button type="button" key={value} onClick={() => setFormat(value)} className={`rounded-xl border px-2 py-3 text-xs font-black ${format === value ? 'border-cyan-300 bg-cyan-300/10 text-cyan-200' : 'border-white/10 text-slate-600'}`}>{value}</button>)}</div></div>
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs text-rose-300">{error}</div>}{status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">{status}</div>}
-            {primaryActionState === 'pick-source' ? <label className="relative mt-6 block w-full cursor-pointer"><input type="file" accept="video/*,.mp4,.mov,.webm,.mkv" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={onFileChange} disabled={primaryDisabled} /><span className={`block w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-center text-sm font-black text-slate-950 ${primaryDisabled ? 'opacity-40' : ''}`}>📤 Pilih sumber video untuk mulai →</span></label> : <button type="button" disabled={primaryDisabled} onClick={primaryAction} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:opacity-40">{busy ? 'AI memilih banyak momen…' : !isOwner && credits < batchCount ? 'Kredit tidak cukup' : 'Buat video viral →'}</button>}
+            <button type="button" disabled={primaryDisabled} onClick={primaryAction} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">{busy ? '⏳ Proses 01–04 sedang berjalan…' : !file || !duration ? 'Pilih video terlebih dahulu' : !isOwner && credits < batchCount ? 'Kredit tidak cukup' : '🚀 Mulai Proses AI →'}</button>
             <p className="mt-3 text-center text-[10px] leading-4 text-slate-700">{isOwner ? 'Owner: proses batch tidak mengurangi kredit.' : 'Setiap clip memakai 1 credit.'}</p>
           </aside>
         </div>
       </div>
     </main>
   );
+}
+
+function PipelinePreview({ states, stage }: { states: ReturnType<typeof getCreateStudioStepStates>; stage: CreateStudioStepStage }) {
+  const stageText: Record<CreateStudioStepStage, string> = {
+    idle: 'Siap. Klik Mulai Proses AI untuk menjalankan pipeline.',
+    transcribe: 'AI sedang membaca ucapan dan timing…',
+    viral: 'AI sedang menemukan momen terbaik…',
+    edit: 'AI sedang menyiapkan edit otomatis…',
+    render: 'Menyiapkan rendering MP4…',
+    complete: 'Semua tahap selesai.',
+  };
+  return <div className="space-y-2"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-black">Pipeline rendering 01–04</span><span className="text-[10px] text-cyan-300">{stageText[stage]}</span></div>{PIPELINE_STEPS.map(([number, title, description], index) => <div key={number} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${states[index] === 'done' ? 'bg-emerald-300 text-slate-950' : states[index] === 'active' ? 'bg-cyan-300 text-slate-950' : 'bg-white/10 text-slate-500'}`}>{states[index] === 'done' ? '✓' : number}</span><div className="min-w-0"><div className="text-xs font-black">{title}</div><div className="text-[10px] text-slate-600">{description}</div></div></div>)}</div>;
 }
 
 function formatSize(bytes: number) { return `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
