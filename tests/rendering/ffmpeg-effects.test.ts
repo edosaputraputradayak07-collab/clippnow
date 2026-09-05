@@ -17,4 +17,17 @@ describe('viral render options', () => {
     expect(filterGraph).toContain('subtitles=/tmp/captions.ass');
     expect(filterGraph).toContain('zoompan');
   });
+
+  it('normalizes audio only when the auto-edit pipeline requests it', () => {
+    const args = buildFfmpegArgs({
+      sourcePath: '/tmp/source.mp4',
+      outputPath: '/tmp/output.mp4',
+      startSeconds: 0,
+      durationSeconds: 10,
+      format: '9:16',
+      normalizeAudio: true,
+    });
+
+    expect(args.join(' ')).toContain('loudnorm=I=-14:TP=-1.5:LRA=11');
+  });
 });
