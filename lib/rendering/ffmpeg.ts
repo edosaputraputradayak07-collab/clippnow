@@ -8,6 +8,7 @@ export interface FfmpegInput {
   format: RenderFormat;
   subtitlePath?: string;
   effects?: string[];
+  normalizeAudio?: boolean;
 }
 
 const SIZE: Record<RenderFormat, string> = { '9:16': '1080:1920', '1:1': '1080:1080', '16:9': '1920:1080' };
@@ -34,7 +35,9 @@ export function buildFfmpegArgs(input: FfmpegInput): string[] {
 
   return [
     '-hide_banner','-loglevel','error','-ss',String(input.startSeconds),'-i',input.sourcePath,'-t',String(input.durationSeconds),
-    '-map','0:v:0?','-map','0:a:0?','-vf',filters.join(','),'-c:v','libx264','-preset','veryfast','-crf','21','-pix_fmt','yuv420p',
+    '-map','0:v:0?','-map','0:a:0?','-vf',filters.join(','),
+    ...(input.normalizeAudio ? ['-af','loudnorm=I=-14:TP=-1.5:LRA=11'] : []),
+    '-c:v','libx264','-preset','veryfast','-crf','21','-pix_fmt','yuv420p',
     '-c:a','aac','-b:a','160k','-movflags','+faststart','-progress','pipe:1','-nostats','-y',input.outputPath,
   ];
 }
