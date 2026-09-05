@@ -28,11 +28,7 @@ export async function POST(request: Request) {
   if (!isYouTubeUrl(youtubeUrl)) return NextResponse.json({ error: 'Link YouTube tidak valid.' }, { status: 400, headers: noStoreHeaders() });
 
   try {
-    const origin = new URL(request.url).origin;
-    const result = await createLumiClipYouTubeProject({
-      youtubeUrl,
-      callbackUrl: `${origin}/api/youtube/lumiclip/webhook`,
-    });
+    const result = await createLumiClipYouTubeProject({ youtubeUrl });
     if (!result.project_id) return NextResponse.json({ error: result.message || 'LumiClip tidak mengembalikan project_id.' }, { status: 502, headers: noStoreHeaders() });
     return NextResponse.json({ provider: 'lumiclip', provider_project_id: result.project_id, status: 'processing', estimated_minutes: result.estimated_minutes ?? null }, { headers: noStoreHeaders() });
   } catch (cause) {
