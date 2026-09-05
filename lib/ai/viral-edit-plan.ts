@@ -1,3 +1,5 @@
+import { chooseAutoEditTreatment } from './auto-edit-treatment';
+
 export type ViralGoal = 'tiktok' | 'instagram-reels' | 'youtube-shorts' | 'story' | 'podcast' | 'gaming' | 'music' | 'vlog' | 'education';
 export type SubtitleStyle = 'viral-punch' | 'clean' | 'karaoke' | 'neon' | 'cinematic';
 
@@ -40,13 +42,13 @@ function buildPlanForSegment(input: ViralEditInput, winner: TranscriptSegment, s
   const clipEnd = Math.min(input.durationSeconds, safeStart + targetLength);
   const hookStart = Math.max(safeStart, Math.min(winner.start, clipEnd));
   const hookEnd = Math.min(clipEnd, Math.max(hookStart, winner.end), hookStart + 3);
-  const effects = input.goal === 'education' ? ['motion-zoom', 'beat-flash', 'clean-cut'] : ['motion-zoom', 'beat-flash', 'impact-shake', 'jump-cut'];
+  const treatment = chooseAutoEditTreatment({ score, text: winner.text, goal: input.goal });
   return {
     score,
     hook: { startSeconds: hookStart, endSeconds: hookEnd },
     clip: { startSeconds: safeStart, endSeconds: clipEnd },
-    subtitle: { style: input.goal === 'music' ? 'karaoke' : 'viral-punch', maxWordsPerLine: 5 },
-    effects,
+    subtitle: { style: treatment.subtitleStyle, maxWordsPerLine: 5 },
+    effects: treatment.effects,
     output: { ...OUTPUTS[input.format], fps: input.format === '16:9' ? 30 : 60 },
   };
 }
@@ -68,9 +70,6 @@ export function buildViralEditPlans(input: ViralEditInput & { count?: number }):
   const targetLength = input.format === '16:9' ? 45 : 30;
   const ranked = input.transcript.map((segment, index) => ({ segment, index, score: segmentScore(segment, input.transcript, input.durationSeconds) })).sort((a, b) => b.score - a.score || a.segment.start - b.segment.start);
 
-  // Use evenly distributed non-overlapping slots for a requested 5–10 batch.
-  // The transcript segment nearest each slot supplies the hook and viral score,
-  // while the slot itself guarantees that every requested clip has its own range.
   const maxPossible = Math.max(1, Math.floor(input.durationSeconds / targetLength));
   const count = Math.min(requested, maxPossible);
   const plans: ViralEditPlan[] = [];
