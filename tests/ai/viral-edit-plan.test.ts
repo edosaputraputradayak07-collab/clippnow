@@ -35,4 +35,33 @@ describe('buildViralEditPlan', () => {
     expect(plan.hook.endSeconds).toBe(0);
     expect(plan.effects).toEqual([]);
   });
+
+  it('chooses stronger treatments for a high-signal hook', () => {
+    const plan = buildViralEditPlan({
+      durationSeconds: 36,
+      format: '9:16',
+      goal: 'tiktok',
+      transcript: [
+        { start: 0, end: 2, text: 'Ternyata ini rahasia paling penting!' },
+        { start: 2, end: 6, text: 'Jangan lakukan kesalahan ini.' },
+      ],
+    });
+
+    expect(plan.effects).toEqual(['motion-zoom', 'impact-shake', 'beat-flash', 'jump-cut']);
+    expect(plan.subtitle.style).toBe('viral-punch');
+  });
+
+  it('keeps lower-signal education clips restrained', () => {
+    const plan = buildViralEditPlan({
+      durationSeconds: 40,
+      format: '16:9',
+      goal: 'education',
+      transcript: [
+        { start: 25, end: 35, text: 'Pada bagian ini kita membahas konsep dasar secara bertahap.' },
+      ],
+    });
+
+    expect(plan.effects).toEqual(['clean-cut']);
+    expect(plan.subtitle.style).toBe('clean');
+  });
 });
