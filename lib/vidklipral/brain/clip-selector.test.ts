@@ -20,7 +20,10 @@ function candidate(overrides: Partial<ClipCandidate> = {}): ClipCandidate {
 
 describe('selectClipCandidates', () => {
   it('ranks candidates by score and preserves the input array', () => {
-    const input = [candidate({ id: 'low', score: 0.6 }), candidate({ id: 'high', score: 0.95 })];
+    const input = [
+      candidate({ id: 'low', startSeconds: 35, endSeconds: 65, score: 0.6 }),
+      candidate({ id: 'high', score: 0.95 }),
+    ];
     const result = selectClipCandidates(input, 2);
 
     expect(result.map((item) => item.id)).toEqual(['high', 'low']);
