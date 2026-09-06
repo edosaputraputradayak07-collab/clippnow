@@ -37,36 +37,24 @@ export function selectClipCandidates(
   const usedTopics = new Set<string>();
 
   while (selected.length < limit) {
-    const available = ranked.filter((candidate) => {
-      if (selected.some((existing) => overlaps(existing, candidate))) return false;
-      if (candidate.topicKey && usedTopics.has(candidate.topicKey)) return false;
-      return true;
-    });
+    const available = ranked.filter((candidate) => !selected.some((existing) => overlaps(existing, candidate)));
+    if (available.length === 0) break;
 
-    const diversePick = available[0];
-    if (diversePick) {
-      selected.push(diversePick);
-      if (diversePick.topicKey) usedTopics.add(diversePick.topicKey);
-      continue;
+    const best = available[0];
+    let pick = best;
+
+    if (best.topicKey && usedTopics.has(best.topicKey)) {
+      const diverseAlternative = available.find(
+        (candidate) =>
+          candidate.topicKey &&
+          !usedTopics.has(candidate.topicKey) &&
+          candidate.score >= best.score - Math.max(0, diversityWindow),
+      );
+      if (diverseAlternative) pick = diverseAlternative;
     }
 
-    const fallback = ranked.find((candidate) => {
-      if (selected.some((existing) => overlaps(existing, candidate))) return false;
-      if (!candidate.topicKey || !usedTopics.has(candidate.topicKey)) return true;
-
-      const unusedAlternative = ranked.find((alternative) =>
-        alternative.topicKey &&
-        !usedTopics.has(alternative.topicKey) &&
-        !selected.some((existing) => overlaps(existing, alternative)) &&
-        alternative.score >= candidate.score - diversityWindow,
-      );
-
-      return !unusedAlternative;
-    });
-
-    if (!fallback) break;
-    selected.push(fallback);
-    if (fallback.topicKey) usedTopics.add(fallback.topicKey);
+    selected.push(pick);
+    if (pick.topicKey) usedTopics.add(pick.topicKey);
   }
 
   return selected;
