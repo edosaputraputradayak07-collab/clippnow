@@ -30,6 +30,36 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
+function tokenSimilarity(a: string, b: string): number {
+  const aTokens = new Set(normalizeText(a).split(' ').filter(Boolean));
+  const bTokens = new Set(normalizeText(b).split(' ').filter(Boolean));
+  if (aTokens.size === 0 || bTokens.size === 0) return 0;
+  const intersection = [...aTokens].filter((token) => bTokens.has(token)).length;
+  const union = new Set([...aTokens, ...bTokens]).size;
+  return intersection / union;
+}
+
+function temporalOverlapRatio(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  const overlap = Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+  const shorterDuration = Math.min(aEnd - aStart, bEnd - bStart);
+  if (shorterDuration <= 0) return 0;
+  return overlap / shorterDuration;
+}
+
+function isDuplicateWindow(
+  existing: Pick<AnalyzedClipCandidate, 'startSeconds' | 'endSeconds' | 'transcript'>,
+  transcript: string,
+  startSeconds: number,
+  endSeconds: number,
+): boolean {
+  if (normalizeText(existing.transcript) === normalizeText(transcript)) return true;
+
+  return (
+    temporalOverlapRatio(existing.startSeconds, existing.endSeconds, startSeconds, endSeconds) >= 0.8 &&
+    tokenSimilarity(existing.transcript, transcript) >= 0.8
+  );
+}
+
 function candidateSignals(retention: RetentionShape, transcript: string, durationSeconds: number) {
   const lower = transcript.toLowerCase();
   const punctuationHook = /[?!]/.test(transcript) ? 1 : 0.5;
@@ -108,7 +138,6 @@ export function analyzeClipCandidates(
     .sort((a, b) => a.startSeconds - b.startSeconds);
 
   const results: AnalyzedClipCandidate[] = [];
-  const seen = new Set<string>();
 
   for (let startIndex = 0; startIndex < validSegments.length; startIndex += 1) {
     const window: TranscriptSegment[] = [];
@@ -123,8 +152,11 @@ export function analyzeClipCandidates(
       const boundary = chooseNaturalBoundaries(validSegments, requestedStart, requestedEnd, 1.5);
       if (!boundary) continue;
       const transcript = window.map((segment) => segment.text).join(' ').trim();
-      const key = normalizeText(transcript);
-      if (!key || seen.has(key)) continue;
+      if (
+        results.some((existing) =>
+          isDuplicateWindow(existing, transcript, boundary.startSeconds, boundary.endSeconds),
+        )
+      ) continue;
 
       const retention = classifyRetentionShape(window);
       const context = analyzeClipContext({
@@ -135,7 +167,6 @@ export function analyzeClipCandidates(
       const signals = candidateSignals(retention, transcript, context.durationSeconds);
       const detailed = scoreClipCandidateDetailed(signals);
       const score = applyPatternAdjustment(detailed.score, detailed.breakdown, options.patternMemory);
-      seen.add(key);
 
       results.push({
         id: `candidate-${results.length + 1}`,
