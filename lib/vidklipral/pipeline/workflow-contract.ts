@@ -2,6 +2,7 @@ import type { RenderAspectRatio } from '../engine/render-plan';
 
 export type VideoWorkflowInput = {
   projectId: string;
+  jobId: string;
   userId: string;
   sourcePath: string;
   format: RenderAspectRatio;
@@ -16,13 +17,14 @@ export function parseVideoWorkflowInput(input: unknown): VideoWorkflowInput {
 
   const value = input as Record<string, unknown>;
   const projectId = typeof value.projectId === 'string' ? value.projectId.trim() : '';
+  const jobId = typeof value.jobId === 'string' ? value.jobId.trim() : '';
   const userId = typeof value.userId === 'string' ? value.userId.trim() : '';
   const sourcePath = typeof value.sourcePath === 'string' ? value.sourcePath.trim() : '';
   const format = typeof value.format === 'string' ? value.format as RenderAspectRatio : null;
   const startSeconds = typeof value.startSeconds === 'number' ? value.startSeconds : NaN;
   const endSeconds = typeof value.endSeconds === 'number' ? value.endSeconds : NaN;
 
-  if (!projectId || !userId || !sourcePath) throw new Error('Workflow input is incomplete.');
+  if (!projectId || !jobId || !userId || !sourcePath) throw new Error('Workflow input is incomplete.');
   if (!sourcePath.startsWith(`${userId}/`) || sourcePath.includes('..')) {
     throw new Error('Invalid source path for workflow user.');
   }
@@ -31,5 +33,5 @@ export function parseVideoWorkflowInput(input: unknown): VideoWorkflowInput {
     throw new Error('Invalid render range.');
   }
 
-  return { projectId, userId, sourcePath, format, startSeconds, endSeconds };
+  return { projectId, jobId, userId, sourcePath, format, startSeconds, endSeconds };
 }
