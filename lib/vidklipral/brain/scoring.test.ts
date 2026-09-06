@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreClipCandidate, rankClipCandidates } from './scoring';
+import { scoreClipCandidate, scoreClipCandidateDetailed, rankClipCandidates } from './scoring';
 
 describe('scoreClipCandidate', () => {
   it('weights hook, story completeness, emotion, visual interest and pacing into a bounded viral score', () => {
@@ -26,6 +26,27 @@ describe('scoreClipCandidate', () => {
     });
 
     expect(slow).toBeLessThan(strong);
+  });
+
+  it('keeps the legacy numeric score API stable for old callers', () => {
+    expect(typeof scoreClipCandidate({
+      hook: 0.8, curiosity: 0.8, emotion: 0.8, storyCompleteness: 0.8,
+      informationValue: 0.8, surprise: 0.8, humor: 0.8, speakerEnergy: 0.8,
+      visualInterest: 0.8, pacing: 0.8, rewatchPotential: 0.8, deadAir: 0,
+    })).toBe('number');
+  });
+
+  it('includes standalone context and payoff in the detailed score breakdown', () => {
+    const result = scoreClipCandidateDetailed({
+      hook: 1, curiosity: 1, emotion: 0.5, storyCompleteness: 1,
+      informationValue: 0.7, surprise: 0.8, humor: 0.2, speakerEnergy: 0.8,
+      visualInterest: 0.7, pacing: 0.8, rewatchPotential: 0.9, deadAir: 0,
+      standaloneContext: 1, payoff: 1, captionDensity: 0.6, topicRelevance: 0.9, duplicatePenalty: 0,
+    });
+
+    expect(result.score).toBeGreaterThan(0.7);
+    expect(result.breakdown.standaloneContext).toBe(1);
+    expect(result.breakdown.payoff).toBe(1);
   });
 });
 
