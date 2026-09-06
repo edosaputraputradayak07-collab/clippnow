@@ -1,12 +1,16 @@
+import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import ffmpegPath from 'ffmpeg-static';
 import youtubedl from 'youtube-dl-exec';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildYouTubeIngestionArgs, validateYouTubeIngestionRequest } from '@/lib/vidklipral/ingest/youtube-ingestion';
+import { parseMediaDuration } from '@/lib/vidklipral/ingest/media-duration';
 
 const BUCKET = 'clippnow-videos';
+const execFileAsync = promisify(execFile);
 
 type YouTubeIngestInput = {
   projectId: string;
@@ -18,6 +22,7 @@ type YouTubeIngestInput = {
 type YouTubeIngestResult = {
   sourcePath: string;
   videoId: string;
+  durationSeconds: number;
 };
 
 function parseInput(raw: YouTubeIngestInput): YouTubeIngestInput {
@@ -25,6 +30,17 @@ function parseInput(raw: YouTubeIngestInput): YouTubeIngestInput {
     throw new Error('YouTube ingestion input is incomplete.');
   }
   return raw;
+}
+
+async function probeDuration(inputPath: string): Promise<number> {
+  if (!ffmpegPath) throw new Error('FFmpeg binary unavailable.');
+  try {
+    await execFileAsync(ffmpegPath, ['-hide_banner', '-i', inputPath], { maxBuffer: 1024 * 1024 });
+    throw new Error('Media duration unavailable');
+  } catch (error) {
+    const stderr = error && typeof error === 'object' && 'stderr' in error ? String(error.stderr ?? '') : '';
+    return parseMediaDuration(stderr);
+  }
 }
 
 async function ingestYouTubeSource(input: YouTubeIngestInput): Promise<YouTubeIngestResult> {
@@ -58,6 +74,7 @@ async function ingestYouTubeSource(input: YouTubeIngestInput): Promise<YouTubeIn
     });
     await subprocess;
 
+    const durationSeconds = await probeDuration(outputFile);
     await admin.from('jobs').update({ progress: 70, last_heartbeat_at: new Date().toISOString() }).eq('id', input.jobId).eq('user_id', input.userId);
 
     const outputBuffer = await fs.readFile(outputFile);
@@ -68,7 +85,7 @@ async function ingestYouTubeSource(input: YouTubeIngestInput): Promise<YouTubeIn
     });
     if (uploadError) throw new Error(`YouTube source upload failed: ${uploadError.message}`);
 
-    const { error: projectError } = await admin.from('projects').update({ source_path: sourcePath, status: 'ready' }).eq('id', input.projectId).eq('user_id', input.userId);
+    const { error: projectError } = await admin.from('projects').update({ source_path: sourcePath, start_seconds: 0, end_seconds: durationSeconds, status: 'ready' }).eq('id', input.projectId).eq('user_id', input.userId);
     if (projectError) throw new Error(`Project source update failed: ${projectError.message}`);
 
     const { error: finalizeError } = await admin.rpc('finalize_clippnow_job', {
@@ -80,7 +97,7 @@ async function ingestYouTubeSource(input: YouTubeIngestInput): Promise<YouTubeIn
     });
     if (finalizeError) throw new Error(`Job finalize failed: ${finalizeError.message}`);
 
-    return { sourcePath, videoId: request.videoId };
+    return { sourcePath, videoId: request.videoId, durationSeconds };
   } catch (error) {
     await admin.rpc('finalize_clippnow_job', {
       p_job_id: input.jobId,
