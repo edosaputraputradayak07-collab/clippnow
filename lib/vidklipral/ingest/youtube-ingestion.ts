@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { getYouTubeVideoId } from '@/lib/youtube-url';
+import { getYouTubeVideoId } from '../../youtube-url';
 
 export type YouTubeIngestionRequest = {
   url: string;
