@@ -14,18 +14,6 @@ function overlaps(a: ClipCandidate, b: ClipCandidate): boolean {
   return a.startSeconds < b.endSeconds && b.startSeconds < a.endSeconds;
 }
 
-function canUseTopic(candidate: ClipCandidate, selected: ClipCandidate[], diversityWindow: number): boolean {
-  if (!candidate.topicKey) return true;
-  const sameTopic = selected.some((item) => item.topicKey === candidate.topicKey);
-  if (!sameTopic) return true;
-
-  const alternatives = rankClipCandidates(
-    selected.length === 0 ? [] : [],
-  );
-  void alternatives;
-  return diversityWindow <= 0;
-}
-
 export function selectClipCandidates(
   candidates: ClipCandidate[],
   limit: number,
@@ -65,13 +53,15 @@ export function selectClipCandidates(
     const fallback = ranked.find((candidate) => {
       if (selected.some((existing) => overlaps(existing, candidate))) return false;
       if (!candidate.topicKey || !usedTopics.has(candidate.topicKey)) return true;
-      const bestUnusedTopic = ranked.find((alternative) =>
+
+      const unusedAlternative = ranked.find((alternative) =>
         alternative.topicKey &&
         !usedTopics.has(alternative.topicKey) &&
         !selected.some((existing) => overlaps(existing, alternative)) &&
         alternative.score >= candidate.score - diversityWindow,
       );
-      return !bestUnusedTopic;
+
+      return !unusedAlternative;
     });
 
     if (!fallback) break;
