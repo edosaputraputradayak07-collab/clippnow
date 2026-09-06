@@ -45,4 +45,14 @@ describe('selectClipCandidates', () => {
 
     expect(selectClipCandidates(input, 2).map((item) => item.id)).toEqual(['best', 'separate']);
   });
+
+  it('prefers topic diversity when scores are close', () => {
+    const input = [
+      candidate({ id: 'topic-a-best', score: 0.95, topicKey: 'a' }),
+      candidate({ id: 'topic-a-second', startSeconds: 35, endSeconds: 65, score: 0.94, topicKey: 'a' }),
+      candidate({ id: 'topic-b', startSeconds: 70, endSeconds: 100, score: 0.93, topicKey: 'b' }),
+    ];
+
+    expect(selectClipCandidates(input, 2).map((item) => item.id)).toEqual(['topic-a-best', 'topic-b']);
+  });
 });
