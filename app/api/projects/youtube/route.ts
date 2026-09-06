@@ -38,6 +38,7 @@ export async function POST(request: Request) {
   const { data: profile } = await admin.from('profiles').select('plan').eq('id', user.id).single();
   const owner = profile?.plan === 'owner';
   const creditReference = crypto.randomUUID();
+  const sourcePath = `${user.id}/sources/${creditReference}.mp4`;
 
   const { data: project, error: projectError } = await supabase.from('projects').insert({
     user_id: user.id,
@@ -46,8 +47,8 @@ export async function POST(request: Request) {
     start_seconds: 0,
     end_seconds: 0,
     format: '9:16',
-    source_path: `${user.id}/sources/${creditReference}.mp4`,
-    status: 'queued',
+    source_path: sourcePath,
+    status: 'processing',
     credit_reference: creditReference,
   }).select('id,credit_reference').single();
 
@@ -55,44 +56,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Gagal membuat project YouTube.' }, { status: 500, headers: noStoreHeaders() });
   }
 
+  let balance: number | null = null;
   if (!owner) {
-    const { data: balance, error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
+    const { data: reservedBalance, error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
     if (creditError) {
       await supabase.from('projects').delete().eq('id', project.id).eq('user_id', user.id);
       const status = creditError.message.includes('insufficient_credits') ? 402 : 500;
       return NextResponse.json({ error: status === 402 ? 'Kredit kamu habis. Beli paket untuk melanjutkan.' : 'Gagal menggunakan kredit.' }, { status, headers: noStoreHeaders() });
     }
-
-    const { data: job, error: jobError } = await admin.from('jobs').insert({ user_id: user.id, project_id: project.id, source_path: project.id, status: 'queued', progress: 0 }).select('id').single();
-    if (jobError || !job) {
-      await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
-      await supabase.from('projects').delete().eq('id', project.id).eq('user_id', user.id);
-      return NextResponse.json({ error: 'Gagal membuat ingestion job.' }, { status: 500, headers: noStoreHeaders() });
-    }
-
-    try {
-      const run = await start(vidklipralYouTubeIngestWorkflow, [{ projectId: project.id, jobId: job.id, userId: user.id, url: input.url }]);
-      return NextResponse.json({ project_id: project.id, job_id: job.id, run_id: run.runId, status: 'queued', credits_remaining: balance }, { headers: noStoreHeaders() });
-    } catch (error) {
-      await admin.from('jobs').update({ status: 'failed', error_code: 'WORKFLOW_START_FAILED', error_message: error instanceof Error ? error.message : 'Workflow start failed', failed_at: new Date().toISOString() }).eq('id', job.id).eq('user_id', user.id);
-      await supabase.from('projects').update({ status: 'failed' }).eq('id', project.id).eq('user_id', user.id);
-      await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
-      return NextResponse.json({ error: 'Gagal menjalankan YouTube ingestion workflow.' }, { status: 500, headers: noStoreHeaders() });
-    }
+    balance = reservedBalance;
   }
 
-  const { data: job, error: jobError } = await admin.from('jobs').insert({ user_id: user.id, project_id: project.id, source_path: project.id, status: 'queued', progress: 0 }).select('id').single();
+  const { data: job, error: jobError } = await admin.from('jobs').insert({
+    user_id: user.id,
+    project_id: project.id,
+    source_path: sourcePath,
+    status: 'queued',
+    progress: 0,
+  }).select('id').single();
+
   if (jobError || !job) {
+    if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
     await supabase.from('projects').delete().eq('id', project.id).eq('user_id', user.id);
     return NextResponse.json({ error: 'Gagal membuat ingestion job.' }, { status: 500, headers: noStoreHeaders() });
   }
 
   try {
     const run = await start(vidklipralYouTubeIngestWorkflow, [{ projectId: project.id, jobId: job.id, userId: user.id, url: input.url }]);
-    return NextResponse.json({ project_id: project.id, job_id: job.id, run_id: run.runId, status: 'queued', credits_remaining: null }, { headers: noStoreHeaders() });
+    return NextResponse.json({ project_id: project.id, job_id: job.id, run_id: run.runId, status: 'processing', credits_remaining: balance }, { headers: noStoreHeaders() });
   } catch (error) {
     await admin.from('jobs').update({ status: 'failed', error_code: 'WORKFLOW_START_FAILED', error_message: error instanceof Error ? error.message : 'Workflow start failed', failed_at: new Date().toISOString() }).eq('id', job.id).eq('user_id', user.id);
     await supabase.from('projects').update({ status: 'failed' }).eq('id', project.id).eq('user_id', user.id);
+    if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: creditReference });
     return NextResponse.json({ error: 'Gagal menjalankan YouTube ingestion workflow.' }, { status: 500, headers: noStoreHeaders() });
   }
 }
