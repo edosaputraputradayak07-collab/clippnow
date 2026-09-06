@@ -63,8 +63,8 @@ export function analyzeClipContext(input: ClipContextInput): ClipContext {
   return {
     transcript: input.transcript.trim().replace(/\s+/g, ' '),
     durationSeconds,
-    sceneChangeRate: Number((sceneChanges.length / durationSeconds).toFixed(4)),
-    silenceRatio: Number((silenceSeconds / durationSeconds).toFixed(4)),
-    speakerChangeRate: Number((speakerChanges.length / durationSeconds).toFixed(4)),
+    sceneChangeRate: sceneChanges.length / durationSeconds,
+    silenceRatio: silenceSeconds / durationSeconds,
+    speakerChangeRate: speakerChanges.length / durationSeconds,
   };
 }
