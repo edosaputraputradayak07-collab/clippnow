@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
 import CreateStudio from './create-studio';
-import YouTubeImportStudio from './youtube-import-studio';
 
 export default async function CreatePage() {
   const supabase = await createClient();
@@ -10,12 +9,5 @@ export default async function CreatePage() {
   const credits = profile?.credits ?? 0;
   const plan = profile?.plan ?? 'trial';
 
-  return (
-    <>
-      <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-8">
-        <YouTubeImportStudio plan={plan} />
-      </div>
-      <CreateStudio initialCredits={credits} plan={plan} />
-    </>
-  );
+  return <CreateStudio initialCredits={credits} plan={plan} />;
 }
