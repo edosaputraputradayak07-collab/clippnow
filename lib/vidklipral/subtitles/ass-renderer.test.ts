@@ -15,9 +15,10 @@ describe('subtitlePlanToAss', () => {
     expect(ass).toContain('[Script Info]');
     expect(ass).toContain('PlayResX: 1080');
     expect(ass).toContain('PlayResY: 1920');
-    expect(ass).toContain('Alignment=2');
+    expect(ass).toContain(',2,80,80,140,1');
     expect(ass).toContain('0:00:00.00,0:00:01.40');
-    expect(ass).toContain('Kita bikin');
+    expect(ass).toContain('Kita');
+    expect(ass).toContain('bikin');
     expect(ass).toContain('\\c&H00FFFF&viral\\c');
   });
 
@@ -33,7 +34,7 @@ describe('subtitlePlanToAss', () => {
 
     const ass = subtitlePlanToAss(plan, { width: 1080, height: 1920 });
 
-    expect(ass).toContain('Alignment=8');
+    expect(ass).toContain(',8,80,80,140,1');
     expect(ass).toContain('\\k50Hello \\{world\\}');
     expect(ass).toContain('HOOK \\{NOW\\}');
     expect(ass).not.toContain('undefined');
