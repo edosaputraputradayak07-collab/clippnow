@@ -132,8 +132,8 @@ export function buildReframePlan(
   const segments: ReframeSegment[] = [];
 
   for (let index = 0; index < boundaries.length - 1; index += 1) {
-    const startSeconds = boundaries[index];
-    const endSeconds = boundaries[index + 1];
+    const startSeconds = boundaries[index] ?? 0;
+    const endSeconds = boundaries[index + 1] ?? duration;
     if (endSeconds <= startSeconds) continue;
 
     const active = subjects.filter((subject) => subject.startSeconds < endSeconds && subject.endSeconds > startSeconds);
