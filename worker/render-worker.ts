@@ -16,18 +16,14 @@ async function isCurrentWorker(admin: ReturnType<typeof createAdminClient>, jobI
 }
 
 type LegacySubtitleWord = { start: number; end: number; word: string; highlight?: boolean };
+type SubtitleEditStyle = 'viral-punch' | 'clean' | 'karaoke' | 'neon' | 'cinematic' | 'bold-pop';
 type EditPlan = {
   effects?: string[];
-  subtitle?: {
-    style?: 'viral-punch' | 'clean' | 'karaoke' | 'neon' | 'cinematic' | 'bold-pop';
-    position?: SubtitlePosition;
-    keywords?: string[];
-    hook?: { text: string; startSeconds: number; endSeconds: number };
-  };
+  subtitle?: { style?: SubtitleEditStyle; position?: SubtitlePosition; keywords?: string[]; hook?: { text: string; startSeconds: number; endSeconds: number } };
   words?: LegacySubtitleWord[];
 };
 
-function mapSubtitleStyle(style: EditPlan['subtitle'] extends infer T ? T extends { style?: infer S } ? S : never : never): SubtitleStyle {
+function mapSubtitleStyle(style?: SubtitleEditStyle): SubtitleStyle {
   if (style === 'karaoke') return 'karaoke';
   if (style === 'clean' || style === 'cinematic') return 'clean';
   return 'bold-pop';
