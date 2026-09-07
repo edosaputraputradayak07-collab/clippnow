@@ -1,3 +1,3 @@
 export function shouldAutoStartRender(status: string): boolean {
-  return status === 'queued';
+  return status === 'queued' || status === 'ready';
 }

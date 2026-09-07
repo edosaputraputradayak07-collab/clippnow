@@ -7,6 +7,7 @@ export type ClipCandidate = {
   endSeconds: number;
   score: number;
   context: ClipContext;
+  topicKey?: string;
 };
 
 function overlaps(a: ClipCandidate, b: ClipCandidate): boolean {
@@ -17,6 +18,7 @@ export function selectClipCandidates(
   candidates: ClipCandidate[],
   limit: number,
   minimumScore = 0,
+  diversityWindow = 0.03,
 ): ClipCandidate[] {
   if (limit <= 0) return [];
 
@@ -32,10 +34,27 @@ export function selectClipCandidates(
   );
 
   const selected: ClipCandidate[] = [];
-  for (const candidate of ranked) {
-    if (selected.some((existing) => overlaps(existing, candidate))) continue;
-    selected.push(candidate);
-    if (selected.length >= limit) break;
+  const usedTopics = new Set<string>();
+
+  while (selected.length < limit) {
+    const available = ranked.filter((candidate) => !selected.some((existing) => overlaps(existing, candidate)));
+    if (available.length === 0) break;
+
+    const best = available[0];
+    let pick = best;
+
+    if (best.topicKey && usedTopics.has(best.topicKey)) {
+      const diverseAlternative = available.find(
+        (candidate) =>
+          candidate.topicKey &&
+          !usedTopics.has(candidate.topicKey) &&
+          candidate.score >= best.score - Math.max(0, diversityWindow),
+      );
+      if (diverseAlternative) pick = diverseAlternative;
+    }
+
+    selected.push(pick);
+    if (pick.topicKey) usedTopics.add(pick.topicKey);
   }
 
   return selected;

@@ -78,7 +78,35 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
   }
 
   async function prepare() {
-    if (!file || !duration || (!isOwner && credits < batchCount) || busy) return;
+    if (busy) return;
+    if (sourceMode === 'youtube') {
+      if (!youtubeValid) { setError('Link YouTube tidak valid. Gunakan link youtube.com atau youtu.be.'); return; }
+      if (!isOwner && credits < 1) { setError('Kredit kamu habis. Beli paket untuk melanjutkan.'); return; }
+      setBusy(true);
+      setError('');
+      setPipelineStage('transcribe');
+      setStatus('01/04 • Menyiapkan sumber YouTube secara native…');
+      try {
+        const response = await fetch('/api/projects/youtube', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: youtubeLink, name: 'YouTube Viral Clip' }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error ?? 'YouTube ingestion gagal.');
+        if (typeof data.credits_remaining === 'number') setCredits(data.credits_remaining);
+        setPipelineStage('viral');
+        setStatus('02/04 • Sumber berhasil masuk. AI akan mencari momen viral…');
+        window.location.assign(`/dashboard/projects/${data.project_id}`);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'YouTube ingestion gagal.');
+        setPipelineStage('idle');
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (!file || !duration || (!isOwner && credits < batchCount)) return;
     setBusy(true);
     setError('');
     setPipelineStage('transcribe');
@@ -124,7 +152,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
 
   const primaryActionState = getCreateStudioAction({ sourceMode, hasFile: Boolean(file), hasDuration: Boolean(duration), isOwner, credits, batchCount, busy });
   const primaryControl = getCreateStudioPrimaryControl(primaryActionState, busy);
-  const primaryDisabled = primaryControl.disabled || (!isOwner && primaryActionState === 'prepare' && credits < batchCount);
+  const primaryDisabled = sourceMode === 'youtube' ? busy || !youtubeValid || (!isOwner && credits < 1) : primaryControl.disabled || (!isOwner && primaryActionState === 'prepare' && credits < batchCount);
 
   return (
     <main className="min-h-screen bg-[#05070d] px-4 py-5 text-white sm:px-8">
@@ -136,7 +164,7 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
 
         <div className="grid gap-5 py-8 lg:grid-cols-[1.35fr_.65fr]">
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.025] p-4 sm:p-5">
-            <div className="mb-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">01 / Source</div><h1 className="mt-2 text-2xl font-black sm:text-3xl">Upload video. Biar AI yang cari momennya.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Upload file langsung, atau tempel link YouTube untuk melihat sumbernya sebelum kamu memasukkan video yang berhak kamu gunakan.</p></div>
+            <div className="mb-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">01 / Source</div><h1 className="mt-2 text-2xl font-black sm:text-3xl">Upload video. Biar AI yang cari momennya.</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Upload file langsung, atau tempel link YouTube untuk diproses native oleh engine Vidklipral.</p></div>
             <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-1">
               <button type="button" onClick={() => selectMode('upload')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'upload' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>📁 Upload Video</button>
               <button type="button" onClick={() => selectMode('youtube')} className={`rounded-xl px-4 py-3 text-xs font-black transition ${sourceMode === 'youtube' ? 'bg-cyan-300 text-slate-950' : 'text-slate-500 hover:text-white'}`}>🔗 Paste YouTube</button>
@@ -152,8 +180,8 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             )) : (
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4"><label className="text-xs font-bold text-slate-400">Link YouTube</label><div className="mt-2 flex gap-2"><input value={youtubeLink} onChange={(event) => { setYoutubeLink(event.target.value); setError(''); }} placeholder="https://www.youtube.com/watch?v=..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 focus:border-cyan-300/40"/><button type="button" onClick={() => { if (!youtubeValid) setError('Link YouTube tidak valid. Gunakan link youtube.com atau youtu.be.'); }} className="rounded-xl bg-cyan-300 px-4 py-3 text-xs font-black text-slate-950">Preview</button></div>{youtubeLink && !youtubeValid && <p className="mt-2 text-[11px] text-rose-300">Link belum dikenali sebagai URL YouTube.</p>}</div>
-                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><div className="p-3"><PipelinePreview states={pipelineStates} stage={pipelineStage} /></div></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Video akan tampil sebagai preview. Untuk proses AI dan render MP4, pilih file video yang kamu miliki atau punya izin untuk digunakan.</p></div></div>}
-                {youtubeEmbedUrl && <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] p-3 text-xs leading-5 text-amber-200/80">Preview YouTube aktif. Vidklipral tidak mengunduh atau mengambil ulang video YouTube secara otomatis. Untuk proses AI dan render, gunakan file video yang kamu miliki atau berhak gunakan.</div>}
+                {youtubeEmbedUrl ? <div className="overflow-hidden rounded-2xl border border-white/10 bg-black"><div className="aspect-video"><iframe title="YouTube preview" src={youtubeEmbedUrl} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen /></div><div className="p-3"><PipelinePreview states={pipelineStates} stage={pipelineStage} /></div></div> : <div className="flex min-h-[350px] items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/10 bg-black/10 p-8 text-center"><div><div className="text-4xl">🔗</div><h2 className="mt-4 text-lg font-black">Tempel link YouTube</h2><p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Setelah kamu mulai, Vidklipral akan mengambil source secara native lalu melanjutkan ke AI dan render.</p></div></div>}
+                {youtubeEmbedUrl && <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.05] p-3 text-xs leading-5 text-emerald-200/80">Gunakan hanya video yang kamu miliki atau memang kamu punya hak/izin untuk diproses.</div>}
               </div>
             )}
           </section>
@@ -166,7 +194,9 @@ export default function CreateStudio({ initialCredits, plan }: { initialCredits:
             {error && <div className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-xs text-rose-300">{error}</div>}
             {status && <div className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-300">{status}</div>}
 
-            {primaryControl.kind === 'picker' ? (
+            {sourceMode === 'youtube' ? (
+              <button type="button" disabled={primaryDisabled} onClick={() => void prepare()} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">{busy ? '⏳ Mengambil source YouTube…' : !youtubeValid ? 'Masukkan link YouTube' : !isOwner && credits < 1 ? 'Kredit tidak cukup' : '🚀 Proses YouTube dengan Vidklipral →'}</button>
+            ) : primaryControl.kind === 'picker' ? (
               <label className={`relative mt-6 block w-full cursor-pointer ${primaryDisabled ? 'cursor-not-allowed opacity-40' : ''}`}>
                 <input type="file" accept={VIDEO_ACCEPT} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={onFileChange} disabled={primaryDisabled} />
                 <span className="block w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-center text-sm font-black text-slate-950">📤 Pilih video terlebih dahulu →</span>
