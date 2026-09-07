@@ -67,10 +67,6 @@ function normalizeSubject(subject: ReframeSubject): ReframeSubject | null {
   };
 }
 
-function overlap(a: ReframeSubject, b: ReframeSubject): boolean {
-  return a.startSeconds < b.endSeconds && b.startSeconds < a.endSeconds;
-}
-
 function makeCrop(subjects: ReframeSubject[], targetAspect: number, sourceAspect: number): ReframeCrop {
   if (subjects.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
 
@@ -83,12 +79,11 @@ function makeCrop(subjects: ReframeSubject[], targetAspect: number, sourceAspect
 
   let width = 1;
   let height = 1;
-  const normalizedSourceAspect = sourceAspect;
 
-  if (targetAspect < normalizedSourceAspect) {
-    width = clamp(targetAspect / normalizedSourceAspect, 0.05, 1);
+  if (targetAspect < sourceAspect) {
+    width = clamp(targetAspect / sourceAspect, 0.05, 1);
   } else {
-    height = clamp(normalizedSourceAspect / targetAspect, 0.05, 1);
+    height = clamp(sourceAspect / targetAspect, 0.05, 1);
   }
 
   const minX = width / 2;
@@ -155,9 +150,12 @@ export function buildReframePlan(
       subjectIds = chosen.slice(0, 2).sort((a, b) => a.x - b.x).map((subject) => subject.id);
       crop = makeCrop(chosen.slice(0, 2), targetAspect, sourceAspect);
     } else if (chosen.length === 1) {
-      mode = 'single';
-      subjectIds = [chosen[0].id];
-      crop = makeCrop(chosen, targetAspect, sourceAspect);
+      const subject = chosen[0];
+      if (subject) {
+        mode = 'single';
+        subjectIds = [subject.id];
+        crop = makeCrop([subject], targetAspect, sourceAspect);
+      }
     }
 
     const previous = segments[segments.length - 1];
