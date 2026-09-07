@@ -110,7 +110,7 @@ export function buildReframePlan(
   const sourceAspect = finite(options.sourceAspectRatio) && options.sourceAspectRatio! > 0
     ? options.sourceAspectRatio!
     : 16 / 9;
-  const targetAspect = ASPECTS[options.aspectRatio];
+  const targetAspect = ASPECTS[options.aspectRatio] ?? 16 / 9;
 
   const subjects = inputSubjects
     .map(normalizeSubject)
