@@ -107,8 +107,8 @@ export function buildReframePlan(
   if (duration === 0) return [];
 
   const minConfidence = clamp(options.minConfidence ?? 0.65, 0, 1);
-  const sourceAspect = finite(options.sourceAspectRatio) && options.sourceAspectRatio! > 0
-    ? options.sourceAspectRatio!
+  const sourceAspect = typeof options.sourceAspectRatio === 'number' && finite(options.sourceAspectRatio) && options.sourceAspectRatio > 0
+    ? options.sourceAspectRatio
     : 16 / 9;
   const targetAspect = ASPECTS[options.aspectRatio] ?? 16 / 9;
 
