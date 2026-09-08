@@ -35,7 +35,7 @@ describe('subtitlePlanToAss', () => {
     const ass = subtitlePlanToAss(plan, { width: 1080, height: 1920 });
 
     expect(ass).toContain(',8,80,80,140,1');
-    expect(ass).toContain('\\k50Hello \\{world\\}');
+    expect(ass).toContain('{\\k50}Hello \\{world\\}');
     expect(ass).toContain('HOOK \\{NOW\\}');
     expect(ass).not.toContain('undefined');
   });
