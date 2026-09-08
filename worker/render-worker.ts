@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { renderClip } from '@/lib/rendering/renderer';
 import { downloadPrivateVideo, uploadPrivateVideo } from './storage';
-import { buildAssSubtitles, type SubtitleWord } from '@/lib/ai/ass-subtitles';
+import { buildSubtitlePlan, type SubtitlePosition, type SubtitleStyle } from '@/lib/vidklipral/subtitles/subtitle-plan';
+import { subtitlePlanToAss } from '@/lib/vidklipral/subtitles/ass-renderer';
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 async function claim(jobId: string) { const admin = createAdminClient(); const { data, error } = await admin.rpc('claim_clippnow_job', { p_job_id: jobId, p_worker_id: workerId, p_lease_seconds: 900 }); if (error) throw error; return data; }
@@ -14,7 +15,19 @@ async function isCurrentWorker(admin: ReturnType<typeof createAdminClient>, jobI
   return !!data && data.status === 'processing' && data.worker_id === workerId && (!data.lease_expires_at || new Date(data.lease_expires_at).getTime() > Date.now());
 }
 
-type EditPlan = { effects?: string[]; subtitle?: { style?: 'viral-punch' | 'clean' | 'karaoke' | 'neon' | 'cinematic' }; words?: SubtitleWord[] };
+type LegacySubtitleWord = { start: number; end: number; word: string; highlight?: boolean };
+type SubtitleEditStyle = 'viral-punch' | 'clean' | 'karaoke' | 'neon' | 'cinematic' | 'bold-pop';
+type EditPlan = {
+  effects?: string[];
+  subtitle?: { style?: SubtitleEditStyle; position?: SubtitlePosition; keywords?: string[]; hook?: { text: string; startSeconds: number; endSeconds: number } };
+  words?: LegacySubtitleWord[];
+};
+
+function mapSubtitleStyle(style?: SubtitleEditStyle): SubtitleStyle {
+  if (style === 'karaoke') return 'karaoke';
+  if (style === 'clean' || style === 'cinematic') return 'clean';
+  return 'bold-pop';
+}
 
 export async function processJob(jobId: string) {
   const job = await claim(jobId); if (!job) throw new Error('job_not_claimed');
@@ -30,7 +43,19 @@ export async function processJob(jobId: string) {
     const editPlan = (project.edit_plan ?? {}) as EditPlan;
     const words = Array.isArray(editPlan.words) ? editPlan.words : [];
     const subtitlePath = project.edit_mode === 'viral' && words.length ? path.join(tmp, 'captions.ass') : undefined;
-    if (subtitlePath) await writeFile(subtitlePath, buildAssSubtitles(words, editPlan.subtitle?.style), 'utf8');
+    if (subtitlePath) {
+      const subtitlePlan = buildSubtitlePlan(
+        words.map((word) => ({ startSeconds: word.start, endSeconds: word.end, text: word.word, highlight: word.highlight })),
+        {
+          style: mapSubtitleStyle(editPlan.subtitle?.style),
+          position: editPlan.subtitle?.position ?? 'bottom',
+          keywords: editPlan.subtitle?.keywords,
+          hook: editPlan.subtitle?.hook,
+        },
+      );
+      const [width, height] = project.format === '9:16' ? [1080, 1920] : project.format === '1:1' ? [1080, 1080] : [1920, 1080];
+      await writeFile(subtitlePath, subtitlePlanToAss(subtitlePlan, { width, height }), 'utf8');
+    }
 
     await renderClip({
       sourcePath: input,

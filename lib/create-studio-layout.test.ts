@@ -11,6 +11,7 @@ describe('create studio layout', () => {
     expect(page).not.toContain('youtube-import-studio');
     expect(studio).not.toContain('LumiClip');
     expect(studio).not.toContain('lumiclip');
-    expect(studio).toContain('Preview YouTube aktif');
+    expect(studio).toContain('Proses YouTube dengan Vidklipral');
+    expect(studio).toContain("fetch('/api/projects/youtube'");
   });
 });
