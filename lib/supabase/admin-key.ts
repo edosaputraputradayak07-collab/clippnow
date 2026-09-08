@@ -1,8 +1,4 @@
-type AdminKeyEnv = {
-  SUPABASE_SECRET_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
-  SUPABASE_SECRET_KEYS?: string;
-};
+type AdminKeyEnv = Record<string, string | undefined>;
 
 export function resolveSupabaseAdminKey(env: AdminKeyEnv = process.env): string {
   const directSecret = env.SUPABASE_SECRET_KEY?.trim();
