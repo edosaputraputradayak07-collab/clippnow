@@ -18,4 +18,23 @@ describe('buildFfmpegArgs', () => {
     expect(filter).toContain('brightness=');
     expect(filter).toContain('unsharp=');
   });
+
+  it('adds bounded punch-in crop instructions for viral moments', () => {
+    const args = buildFfmpegArgs({
+      sourcePath: '/tmp/source.mp4',
+      outputPath: '/tmp/output.mp4',
+      startSeconds: 0,
+      durationSeconds: 20,
+      format: '9:16',
+      punchIns: [
+        { start: 0, end: 2, strength: 'strong' },
+        { start: 8, end: 10, strength: 'medium' },
+      ],
+    });
+
+    const filter = args[args.indexOf('-vf') + 1];
+    expect(filter).toContain('crop=');
+    expect(filter).toContain('between(t,0,2)');
+    expect(filter).toContain('between(t,8,10)');
+  });
 });
