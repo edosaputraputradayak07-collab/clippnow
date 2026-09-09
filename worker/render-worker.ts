@@ -82,6 +82,7 @@ export async function processJob(jobId: string) {
       format: project.format,
       subtitlePath,
       effects: project.edit_mode === 'viral' ? editPlan.effects : [],
+      punchIns: project.edit_mode === 'viral' ? editPlan.punchIns : [],
       normalizeAudio: project.edit_mode === 'viral',
     }, async p => {
       if (!(await isCurrentWorker(admin, job.id))) throw new Error('job_lease_lost');
