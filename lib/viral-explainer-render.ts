@@ -13,9 +13,15 @@ export type ViralExplainerRenderEditPlan = {
 };
 
 const KEYWORDS = [
+  // English
   'pov', 'best', 'single', 'secret', 'why', 'how', 'mistake', 'truth', 'stop',
   'first', 'then', 'step', 'important', 'because', 'automatically', 'result',
   'try', 'follow', 'subscribe', 'comment', 'share', 'save', 'today',
+  // Indonesian
+  'cara', 'penting', 'jangan', 'hasil', 'hari', 'ikuti', 'langkah', 'pertama',
+  'coba', 'sekarang', 'rahasia', 'kenapa', 'mengapa', 'bagaimana', 'kesalahan',
+  'kebenaran', 'berhenti', 'terbaik', 'otomatis', 'mulai', 'komentar', 'bagikan',
+  'simpan', 'wajib', 'tips', 'trik', 'mudah', 'cepat', 'terbukti', 'perhatikan',
 ];
 
 function extractKeywords(cues: TranscriptCue[]) {
