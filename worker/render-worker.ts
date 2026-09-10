@@ -6,6 +6,8 @@ import { renderClip } from '@/lib/rendering/renderer';
 import { downloadPrivateVideo, uploadPrivateVideo } from './storage';
 import { buildSubtitlePlan, type SubtitlePosition, type SubtitleStyle } from '@/lib/vidklipral/subtitles/subtitle-plan';
 import { subtitlePlanToAss } from '@/lib/vidklipral/subtitles/ass-renderer';
+import { buildViralExplainerPlan, type TranscriptCue } from '@/lib/viral-explainer';
+import { viralExplainerPlanToEditPlan } from '@/lib/viral-explainer-render';
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 async function claim(jobId: string) { const admin = createAdminClient(); const { data, error } = await admin.rpc('claim_clippnow_job', { p_job_id: jobId, p_worker_id: workerId, p_lease_seconds: 900 }); if (error) throw error; return data; }
@@ -21,6 +23,9 @@ type EditPlan = {
   effects?: string[];
   subtitle?: { style?: SubtitleEditStyle; position?: SubtitlePosition; keywords?: string[]; hook?: { text: string; startSeconds: number; endSeconds: number } };
   words?: LegacySubtitleWord[];
+  transcript?: TranscriptCue[];
+  punchIns?: Array<{ start: number; end: number; strength: 'medium' | 'strong' }>;
+  reframe?: { mode: 'face-priority' | 'center'; format: '9:16' | '1:1' | '16:9' };
 };
 
 function mapSubtitleStyle(style?: SubtitleEditStyle): SubtitleStyle {
@@ -40,7 +45,19 @@ export async function processJob(jobId: string) {
   const output = path.join(tmp, 'render.mp4');
   try {
     await downloadPrivateVideo(project.source_path, input);
-    const editPlan = (project.edit_plan ?? {}) as EditPlan;
+    const storedEditPlan = (project.edit_plan ?? {}) as EditPlan;
+    const nativeViralPlan = project.edit_mode === 'viral' && Array.isArray(storedEditPlan.transcript) && storedEditPlan.transcript.length
+      ? buildViralExplainerPlan(storedEditPlan.transcript, {
+          duration: Math.max(0.1, Number(project.end_seconds) - Number(project.start_seconds)),
+          format: project.format,
+          maxClips: 1,
+        })
+      : null;
+    const nativeRenderPlan = nativeViralPlan ? viralExplainerPlanToEditPlan(nativeViralPlan, storedEditPlan.transcript ?? []) : null;
+    const editPlan: EditPlan = nativeRenderPlan
+      ? { ...storedEditPlan, ...nativeRenderPlan, subtitle: { ...storedEditPlan.subtitle, ...nativeRenderPlan.subtitle } }
+      : storedEditPlan;
+
     const words = Array.isArray(editPlan.words) ? editPlan.words : [];
     const subtitlePath = project.edit_mode === 'viral' && words.length ? path.join(tmp, 'captions.ass') : undefined;
     if (subtitlePath) {
@@ -65,6 +82,7 @@ export async function processJob(jobId: string) {
       format: project.format,
       subtitlePath,
       effects: project.edit_mode === 'viral' ? editPlan.effects : [],
+      punchIns: project.edit_mode === 'viral' ? editPlan.punchIns : [],
       normalizeAudio: project.edit_mode === 'viral',
     }, async p => {
       if (!(await isCurrentWorker(admin, job.id))) throw new Error('job_lease_lost');

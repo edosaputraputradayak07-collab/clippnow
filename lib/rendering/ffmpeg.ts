@@ -9,6 +9,7 @@ export interface FfmpegInput {
   subtitlePath?: string;
   effects?: string[];
   normalizeAudio?: boolean;
+  punchIns?: Array<{ start: number; end: number; strength: 'medium' | 'strong' }>;
 }
 
 const SIZE: Record<RenderFormat, string> = { '9:16': '1080:1920', '1:1': '1080:1080', '16:9': '1920:1080' };
@@ -17,13 +18,32 @@ function escapeSubtitlePath(value: string) {
   return value.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
+function punchInScaleExpression(punchIns: NonNullable<FfmpegInput['punchIns']>) {
+  const safe = punchIns
+    .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start)
+    .slice(0, 12);
+  if (!safe.length) return null;
+
+  return safe.reduceRight((expression, item) => {
+    const start = Math.max(0, item.start);
+    const end = Math.max(start, item.end);
+    const scale = item.strength === 'strong' ? 0.82 : 0.9;
+    return `if(between(t,${start},${end}),${scale},${expression})`;
+  }, '1');
+}
+
 export function buildFfmpegArgs(input: FfmpegInput): string[] {
   if (!Number.isFinite(input.startSeconds) || input.startSeconds < 0) throw new Error('Invalid start time');
   if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('Invalid duration');
   const size = SIZE[input.format];
   if (!size) throw new Error('Invalid format');
 
-  const filters = [`scale=${size}:force_original_aspect_ratio=decrease`, `pad=${size}:(ow-iw)/2:(oh-ih)/2`, 'setsar=1'];
+  const filters: string[] = [];
+  const punchExpression = punchInScaleExpression(input.punchIns ?? []);
+  if (punchExpression) {
+    filters.push(`crop=w='iw*${punchExpression}':h='ih*${punchExpression}':x='(iw-ow)/2':y='(ih-oh)/2'`);
+  }
+  filters.push(`scale=${size}:force_original_aspect_ratio=decrease`, `pad=${size}:(ow-iw)/2:(oh-ih)/2`, 'setsar=1');
   const effects = new Set(input.effects ?? []);
 
   if (effects.has('motion-zoom')) filters.push(`zoompan=z='min(zoom+0.0005,1.08)':d=1:s=${size}:fps=30`);
