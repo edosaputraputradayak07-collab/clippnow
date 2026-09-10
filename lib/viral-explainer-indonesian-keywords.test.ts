@@ -11,9 +11,13 @@ describe('Indonesian viral keyword mapping', () => {
 
     const plan = {
       hook: { text: cues[0].text, start: 0, end: 4 },
+      emphasis: [cues[1]],
+      cta: undefined,
+      subtitleStyle: 'dynamic-highlight' as const,
       punchIns: [],
       reframe: { mode: 'face-priority' as const, format: '9:16' as const },
       format: '9:16' as const,
+      clips: [{ start: 0, end: 8, reason: 'explainer' as const }],
     };
 
     const editPlan = viralExplainerPlanToEditPlan(plan, cues);
