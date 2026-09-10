@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFfmpegArgs } from '../../lib/rendering/ffmpeg';
 
 describe('viral render options', () => {
-  it('adds an ASS subtitle filter and motion zoom when requested', () => {
+  it('adds an ASS subtitle filter and duration-aware motion zoom when requested', () => {
     const args = buildFfmpegArgs({
       sourcePath: '/tmp/source.mp4',
       outputPath: '/tmp/output.mp4',
@@ -15,7 +15,9 @@ describe('viral render options', () => {
 
     const filterGraph = args.join(' ');
     expect(filterGraph).toContain('subtitles=/tmp/captions.ass');
-    expect(filterGraph).toContain('zoompan');
+    expect(filterGraph).toContain("crop=w='iw/(1+0.08*min(t/10,1))'");
+    expect(filterGraph).toContain("h='ih/(1+0.08*min(t/10,1))'");
+    expect(filterGraph).not.toContain('zoompan');
   });
 
   it('normalizes audio only when the auto-edit pipeline requests it', () => {
