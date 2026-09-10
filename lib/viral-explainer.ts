@@ -24,16 +24,27 @@ export type ViralExplainerPlan = {
 };
 
 const HOOK_TERMS = [
+  // English
   'pov', 'best', 'single', 'secret', 'why', 'how', 'mistake', 'truth', 'you need', 'stop',
   'this is', 'here is', "here's", 'the easiest', 'the fastest',
+  // Indonesian
+  'cara', 'rahasia', 'kenapa', 'mengapa', 'bagaimana', 'kesalahan', 'kebenaran', 'jangan',
+  'berhenti', 'terbaik', 'tercepat', 'termudah', 'ternyata', 'wajib', 'tips', 'trik',
 ];
 
 const CTA_TERMS = [
+  // English
   'try it', 'start now', 'follow', 'subscribe', 'comment', 'share', 'save this', 'today', 'link in bio',
+  // Indonesian
+  'coba', 'mulai sekarang', 'ikuti', 'langganan', 'komentar', 'bagikan', 'simpan', 'hari ini',
 ];
 
 const EMPHASIS_TERMS = [
+  // English
   'first', 'then', 'step', 'important', 'because', 'best', 'secret', 'automatically', 'result', 'mistake',
+  // Indonesian
+  'pertama', 'kemudian', 'langkah', 'penting', 'karena', 'terbaik', 'rahasia', 'otomatis', 'hasil',
+  'kesalahan', 'jangan', 'sekarang', 'mudah', 'cepat', 'terbukti',
 ];
 
 function normalized(text: string) {
