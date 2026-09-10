@@ -32,6 +32,11 @@ function punchInScaleExpression(punchIns: NonNullable<FfmpegInput['punchIns']>) 
   }, '1');
 }
 
+function motionZoomCropExpression(durationSeconds: number) {
+  const duration = Math.max(0.1, durationSeconds);
+  return `crop=w='iw/(1+0.08*min(t/${duration},1))':h='ih/(1+0.08*min(t/${duration},1))':x='(iw-ow)/2':y='(ih-oh)/2'`;
+}
+
 export function buildFfmpegArgs(input: FfmpegInput): string[] {
   if (!Number.isFinite(input.startSeconds) || input.startSeconds < 0) throw new Error('Invalid start time');
   if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new Error('Invalid duration');
@@ -40,13 +45,16 @@ export function buildFfmpegArgs(input: FfmpegInput): string[] {
 
   const filters: string[] = [];
   const punchExpression = punchInScaleExpression(input.punchIns ?? []);
-  if (punchExpression) {
-    filters.push(`crop=w='iw*${punchExpression}':h='ih*${punchExpression}':x='(iw-ow)/2':y='(ih-oh)/2'`);
-  }
-  filters.push(`scale=${size}:force_original_aspect_ratio=decrease`, `pad=${size}:(ow-iw)/2:(oh-ih)/2`, 'setsar=1');
   const effects = new Set(input.effects ?? []);
 
-  if (effects.has('motion-zoom')) filters.push(`zoompan=z='min(zoom+0.0005,1.08)':d=1:s=${size}:fps=30`);
+  if (punchExpression) {
+    filters.push(`crop=w='iw*${punchExpression}':h='ih*${punchExpression}':x='(iw-ow)/2':y='(ih-oh)/2'`);
+  } else if (effects.has('motion-zoom')) {
+    filters.push(motionZoomCropExpression(input.durationSeconds));
+  }
+  filters.push(`scale=${size}:force_original_aspect_ratio=decrease`, `pad=${size}:(ow-iw)/2:(oh-ih)/2`, 'setsar=1');
+
+  if (effects.has('motion-zoom') && punchExpression) filters.push(motionZoomCropExpression(input.durationSeconds));
   if (effects.has('impact-shake')) filters.push('eq=contrast=1.08:saturation=1.12');
   if (effects.has('beat-flash')) filters.push("eq=brightness='if(lt(mod(t,1.25),0.08),0.10,0)'");
   if (effects.has('jump-cut')) filters.push('unsharp=5:5:0.55:5:5:0');
