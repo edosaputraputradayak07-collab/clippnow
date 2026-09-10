@@ -19,7 +19,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { data, error } = await supabase.from('projects').select('id,format,edit_mode,edit_plan,subtitle_style,status').eq('id', id).eq('user_id', user.id).maybeSingle();
   if (error) return NextResponse.json({ error: 'Gagal mengambil edit plan.' }, { status: 500, headers: noStoreHeaders() });
   if (!data) return NextResponse.json({ error: 'Project tidak ditemukan.' }, { status: 404, headers: noStoreHeaders() });
-  return NextResponse.json({ controls: { format: data.format, subtitleStyle: data.subtitle_style ?? (data.edit_plan as Record<string, unknown> | null)?.subtitle && ((data.edit_plan as Record<string, unknown>).subtitle as Record<string, unknown>)?.style, effects: (data.edit_plan as Record<string, unknown> | null)?.effects ?? [], punchIns: (data.edit_plan as Record<string, unknown> | null)?.punchIns ?? [] }, status: data.status }, { headers: noStoreHeaders() });
+  const editPlan = data.edit_plan && typeof data.edit_plan === 'object' ? data.edit_plan as Record<string, unknown> : {};
+  const subtitle = editPlan.subtitle && typeof editPlan.subtitle === 'object' ? editPlan.subtitle as Record<string, unknown> : {};
+  return NextResponse.json({ controls: { format: data.format, subtitleStyle: data.subtitle_style ?? subtitle.style ?? 'bold-pop', effects: editPlan.effects ?? [], punchIns: editPlan.punchIns ?? [] }, status: data.status }, { headers: noStoreHeaders() });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -40,20 +42,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const duration = Number(body.duration);
   const controls = sanitizeViralEditorControls({ ...body, duration });
   const admin = createAdminClient();
-  const { data: project, error: projectError } = await admin.from('projects').select('id,user_id,format,edit_mode,edit_plan,status').eq('id', id).eq('user_id', user.id).maybeSingle();
+  const { data: project, error: projectError } = await admin.from('projects').select('id,user_id,edit_plan,status').eq('id', id).eq('user_id', user.id).maybeSingle();
   if (projectError) return NextResponse.json({ error: 'Gagal mengambil project.' }, { status: 500, headers: noStoreHeaders() });
   if (!project) return NextResponse.json({ error: 'Project tidak ditemukan.' }, { status: 404, headers: noStoreHeaders() });
   if (project.status === 'processing' || project.status === 'queued') return NextResponse.json({ error: 'Editor dikunci saat video sedang dirender.' }, { status: 409, headers: noStoreHeaders() });
 
   const existingPlan = (project.edit_plan && typeof project.edit_plan === 'object') ? project.edit_plan as Record<string, unknown> : {};
   const existingSubtitle = (existingPlan.subtitle && typeof existingPlan.subtitle === 'object') ? existingPlan.subtitle as Record<string, unknown> : {};
-  const editPlan = {
-    ...existingPlan,
-    effects: controls.effects,
-    punchIns: controls.punchIns,
-    subtitle: { ...existingSubtitle, style: controls.subtitleStyle },
-  };
-  const { data: updated, error: updateError } = await admin.from('projects').update({ format: controls.format, edit_mode: 'viral', subtitle_style: controls.subtitleStyle, edit_plan: editPlan, status: project.status === 'completed' ? 'completed' : project.status, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).select('id,format,edit_mode,edit_plan,subtitle_style,status').single();
+  const editPlan = { ...existingPlan, effects: controls.effects, punchIns: controls.punchIns, subtitle: { ...existingSubtitle, style: controls.subtitleStyle } };
+  const { data: updated, error: updateError } = await admin.from('projects').update({ format: controls.format, edit_mode: 'viral', subtitle_style: controls.subtitleStyle, edit_plan: editPlan, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).select('id,format,edit_mode,edit_plan,subtitle_style,status').single();
   if (updateError || !updated) return NextResponse.json({ error: 'Perubahan editor tidak dapat disimpan.' }, { status: 500, headers: noStoreHeaders() });
   return NextResponse.json({ ok: true, controls }, { headers: noStoreHeaders() });
 }
