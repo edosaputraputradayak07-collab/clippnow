@@ -1,16 +1,21 @@
+import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import ffmpegPath from 'ffmpeg-static';
-import youtubedl from 'youtube-dl-exec';
+import { create as createYoutubeDl } from 'youtube-dl-exec';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { buildYouTubeIngestionArgs, validateYouTubeIngestionRequest } from '@/lib/vidklipral/ingest/youtube-ingestion';
 import { parseMediaDuration } from '@/lib/vidklipral/ingest/media-duration';
+import { getYouTubeDlBinaryPath } from '@/lib/vidklipral/ingest/youtube-runtime';
 
 const BUCKET = 'clippnow-videos';
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
+const youtubeDlBinaryPath = getYouTubeDlBinaryPath(require.resolve('youtube-dl-exec'));
+const youtubedl = createYoutubeDl(youtubeDlBinaryPath);
 
 type YouTubeIngestInput = {
   projectId: string;
