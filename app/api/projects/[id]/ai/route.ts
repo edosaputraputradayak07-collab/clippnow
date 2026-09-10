@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import { execFile } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import ffmpegPath from 'ffmpeg-static';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
@@ -7,9 +13,13 @@ import { sameOrigin, noStoreHeaders } from '@/lib/security/request';
 import { buildViralEditPlans, type ViralGoal } from '@/lib/ai/viral-edit-plan';
 import { selectClipWords } from '@/lib/ai/transcript-clip';
 import { buildExplainerPlanFromSegments, rebaseTranscriptSegments } from '@/lib/viral-explainer-adapter';
+import { buildTranscriptionAudioArgs } from '@/lib/ai/transcription-audio';
 
 const BUCKET = 'clippnow-videos';
 const OPENAI_URL = 'https://api.openai.com/v1/audio/transcriptions';
+const execFileAsync = promisify(execFile);
+export const maxDuration = 300;
+
 function goal(value: unknown): ViralGoal { const allowed: ViralGoal[] = ['tiktok','instagram-reels','youtube-shorts','story','podcast','gaming','music','vlog','education']; return typeof value === 'string' && allowed.includes(value as ViralGoal) ? value as ViralGoal : 'tiktok'; }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -35,71 +45,71 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { data: profile } = await admin.from('profiles').select('plan,credits').eq('id', user.id).single();
   const owner = profile?.plan === 'owner';
   const additionalCount = Math.max(0, count - 1);
-  if (additionalCount > 0 && !owner) {
-    if (!profile || Number(profile.credits) < additionalCount) return NextResponse.json({ error: `Batch ${count} video membutuhkan ${count} kredit. Setelah clip pertama dibuat, kamu membutuhkan ${additionalCount} kredit lagi.` }, { status: 402, headers: noStoreHeaders() });
-  }
-  const { data: source, error: sourceError } = await admin.storage.from(BUCKET).download(project.source_path);
-  if (sourceError || !source) return NextResponse.json({ error: 'Video sumber tidak dapat dibaca.' }, { status: 404, headers: noStoreHeaders() });
-  const form = new FormData();
-  form.append('file', new File([await source.arrayBuffer()], 'source.mp4', { type: source.type || 'video/mp4' }));
-  form.append('model', 'whisper-1'); form.append('response_format', 'verbose_json'); form.append('timestamp_granularities[]', 'word'); form.append('timestamp_granularities[]', 'segment'); if (language) form.append('language', language);
-  const response = await fetch(OPENAI_URL, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form, cache: 'no-store' });
-  if (!response.ok) { const detail = await response.text().catch(() => ''); console.error('OpenAI transcription failed', response.status, detail.slice(0, 500)); return NextResponse.json({ error: 'Transkripsi AI gagal. Coba lagi.' }, { status: 502, headers: noStoreHeaders() }); }
-  const transcription = await response.json() as { text?: string; segments?: Array<{ start: number; end: number; text: string }>; words?: Array<{ start: number; end: number; word: string }> };
-  const offset = Number(project.start_seconds) || 0;
-  const end = Number(project.end_seconds);
-  const duration = Math.max(0.1, end - offset);
-  const sourceSegments = (transcription.segments ?? []).map(segment => ({ start: Number(segment.start), end: Number(segment.end), text: String(segment.text ?? '').trim() }));
-  const localSegments = rebaseTranscriptSegments(sourceSegments, offset, duration);
-  const plans = buildViralEditPlans({ durationSeconds: duration, format: project.format, goal: requestedGoal, transcript: localSegments, count });
-  const explainerPlan = buildExplainerPlanFromSegments(localSegments, { duration, format: project.format === '1:1' || project.format === '16:9' ? project.format : '9:16', maxClips: count });
-  if (!plans.length) return NextResponse.json({ error: 'AI belum menemukan momen yang cukup berbeda untuk dibuat menjadi clip.' }, { status: 422, headers: noStoreHeaders() });
-  const projectIds: string[] = [];
-  const createdExtraIds: string[] = [];
-  const extraReferences: string[] = [];
-  const first = plans[0];
-  const firstStart = offset + first.clip.startSeconds;
-  const firstEnd = offset + first.clip.endSeconds;
-  const firstWords = selectClipWords(transcription.words ?? [], firstStart, firstEnd);
-  const firstEditPlan = { ...first, transcript: localSegments, transcript_origin_seconds: offset, words: firstWords, viral_explainer: explainerPlan };
-  const { error: firstUpdateError } = await admin.from('projects').update({ start_seconds: firstStart, end_seconds: firstEnd, edit_mode: 'viral', subtitle_style: first.subtitle.style, viral_score: first.score, edit_plan: firstEditPlan, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
-  if (firstUpdateError) return NextResponse.json({ error: 'Hasil AI tidak dapat disimpan. Coba lagi.' }, { status: 500, headers: noStoreHeaders() });
-  projectIds.push(project.id);
+  if (additionalCount > 0 && !owner && (!profile || Number(profile.credits) < additionalCount)) return NextResponse.json({ error: `Batch ${count} video membutuhkan ${count} kredit. Setelah clip pertama dibuat, kamu membutuhkan ${additionalCount} kredit lagi.` }, { status: 402, headers: noStoreHeaders() });
+  if (!ffmpegPath) return NextResponse.json({ error: 'Mesin audio AI belum tersedia di server.' }, { status: 503, headers: noStoreHeaders() });
 
-  for (let index = 1; index < plans.length; index += 1) {
-    const plan = plans[index];
-    const reference = crypto.randomUUID();
-    if (!owner) {
-      const { error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: reference });
-      if (creditError) {
-        for (const ref of extraReferences) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref });
-        await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id);
-        return NextResponse.json({ error: 'Kredit tidak cukup untuk menyelesaikan batch. Tidak ada kredit tambahan yang dipakai.' }, { status: 402, headers: noStoreHeaders() });
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vidklipral-transcribe-'));
+  const sourceFile = path.join(tempDir, 'source.mp4');
+  const audioFile = path.join(tempDir, 'transcription.mp3');
+  try {
+    const { data: source, error: sourceError } = await admin.storage.from(BUCKET).download(project.source_path);
+    if (sourceError || !source) return NextResponse.json({ error: 'Video sumber tidak dapat dibaca.' }, { status: 404, headers: noStoreHeaders() });
+    await fs.writeFile(sourceFile, Buffer.from(await source.arrayBuffer()));
+    await execFileAsync(ffmpegPath, buildTranscriptionAudioArgs(sourceFile, audioFile), { maxBuffer: 1024 * 1024 * 4 });
+    const audioBuffer = await fs.readFile(audioFile);
+    const form = new FormData();
+    form.append('file', new File([audioBuffer], 'transcription.mp3', { type: 'audio/mpeg' }));
+    form.append('model', 'whisper-1');
+    form.append('response_format', 'verbose_json');
+    form.append('timestamp_granularities[]', 'word');
+    form.append('timestamp_granularities[]', 'segment');
+    if (language) form.append('language', language);
+    const response = await fetch(OPENAI_URL, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form, cache: 'no-store' });
+    if (!response.ok) { const detail = await response.text().catch(() => ''); console.error('OpenAI transcription failed', response.status, detail.slice(0, 500)); return NextResponse.json({ error: response.status === 413 ? 'Audio terlalu besar untuk transkripsi AI.' : 'Transkripsi AI gagal. Coba lagi.' }, { status: 502, headers: noStoreHeaders() }); }
+    const transcription = await response.json() as { text?: string; segments?: Array<{ start: number; end: number; text: string }>; words?: Array<{ start: number; end: number; word: string }> };
+    const offset = Number(project.start_seconds) || 0;
+    const end = Number(project.end_seconds);
+    const duration = Math.max(0.1, end - offset);
+    const sourceSegments = (transcription.segments ?? []).map(segment => ({ start: Number(segment.start), end: Number(segment.end), text: String(segment.text ?? '').trim() }));
+    const localSegments = rebaseTranscriptSegments(sourceSegments, offset, duration);
+    const plans = buildViralEditPlans({ durationSeconds: duration, format: project.format, goal: requestedGoal, transcript: localSegments, count });
+    const explainerPlan = buildExplainerPlanFromSegments(localSegments, { duration, format: project.format === '1:1' || project.format === '16:9' ? project.format : '9:16', maxClips: count });
+    if (!plans.length) return NextResponse.json({ error: 'AI belum menemukan momen yang cukup berbeda untuk dibuat menjadi clip.' }, { status: 422, headers: noStoreHeaders() });
+    const projectIds: string[] = [];
+    const createdExtraIds: string[] = [];
+    const extraReferences: string[] = [];
+    const first = plans[0];
+    const firstStart = offset + first.clip.startSeconds;
+    const firstEnd = offset + first.clip.endSeconds;
+    const firstWords = selectClipWords(transcription.words ?? [], firstStart, firstEnd);
+    const firstEditPlan = { ...first, transcript: localSegments, transcript_origin_seconds: offset, words: firstWords, viral_explainer: explainerPlan };
+    const { error: firstUpdateError } = await admin.from('projects').update({ start_seconds: firstStart, end_seconds: firstEnd, edit_mode: 'viral', subtitle_style: first.subtitle.style, viral_score: first.score, edit_plan: firstEditPlan, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
+    if (firstUpdateError) return NextResponse.json({ error: 'Hasil AI tidak dapat disimpan. Coba lagi.' }, { status: 500, headers: noStoreHeaders() });
+    projectIds.push(project.id);
+    for (let index = 1; index < plans.length; index += 1) {
+      const plan = plans[index];
+      const reference = crypto.randomUUID();
+      if (!owner) {
+        const { error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: reference });
+        if (creditError) { for (const ref of extraReferences) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref }); await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id); return NextResponse.json({ error: 'Kredit tidak cukup untuk menyelesaikan batch. Tidak ada kredit tambahan yang dipakai.' }, { status: 402, headers: noStoreHeaders() }); }
+        extraReferences.push(reference);
       }
-      extraReferences.push(reference);
+      const start = offset + plan.clip.startSeconds;
+      const finish = offset + plan.clip.endSeconds;
+      const words = selectClipWords(transcription.words ?? [], start, finish);
+      const childEditPlan = { ...plan, transcript: localSegments, transcript_origin_seconds: offset, words, viral_explainer: explainerPlan };
+      const { data: child, error: childError } = await admin.from('projects').insert({ user_id: user.id, name: `${project.name || 'Viral Clip'} • ${index + 1}`, original_filename: project.original_filename, start_seconds: start, end_seconds: finish, format: project.format, source_path: project.source_path, status: 'queued', credit_reference: owner ? crypto.randomUUID() : reference, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: childEditPlan }).select('id').single();
+      if (childError || !child) { if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: reference }); for (const ref of extraReferences) if (ref !== reference) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref }); await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id); return NextResponse.json({ error: 'Gagal membuat salah satu video batch.' }, { status: 500, headers: noStoreHeaders() }); }
+      createdExtraIds.push(child.id);
+      const { error: jobError } = await admin.from('jobs').insert({ user_id: user.id, project_id: child.id, source_path: project.source_path, status: 'queued', progress: 0 });
+      if (jobError) { await admin.from('projects').delete().eq('id', child.id).eq('user_id', user.id); if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: reference }); for (const ref of extraReferences) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref }); await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id); return NextResponse.json({ error: 'Gagal membuat render job batch.' }, { status: 500, headers: noStoreHeaders() }); }
+      projectIds.push(child.id);
     }
-    const start = offset + plan.clip.startSeconds;
-    const finish = offset + plan.clip.endSeconds;
-    const words = selectClipWords(transcription.words ?? [], start, finish);
-    const childEditPlan = { ...plan, transcript: localSegments, transcript_origin_seconds: offset, words, viral_explainer: explainerPlan };
-    const { data: child, error: childError } = await admin.from('projects').insert({ user_id: user.id, name: `${project.name || 'Viral Clip'} • ${index + 1}`, original_filename: project.original_filename, start_seconds: start, end_seconds: finish, format: project.format, source_path: project.source_path, status: 'queued', credit_reference: owner ? crypto.randomUUID() : reference, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: childEditPlan }).select('id').single();
-    if (childError || !child) {
-      if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: reference });
-      for (const ref of extraReferences) if (ref !== reference) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref });
-      await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id);
-      return NextResponse.json({ error: 'Gagal membuat salah satu video batch.' }, { status: 500, headers: noStoreHeaders() });
-    }
-    createdExtraIds.push(child.id);
-    const { error: jobError } = await admin.from('jobs').insert({ user_id: user.id, project_id: child.id, source_path: project.source_path, status: 'queued', progress: 0 });
-    if (jobError) {
-      await admin.from('projects').delete().eq('id', child.id).eq('user_id', user.id);
-      if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: reference });
-      for (const ref of extraReferences) if (ref !== reference) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: ref });
-      await admin.from('projects').delete().in('id', createdExtraIds).eq('user_id', user.id);
-      return NextResponse.json({ error: 'Gagal membuat render job batch.' }, { status: 500, headers: noStoreHeaders() });
-    }
-    projectIds.push(child.id);
+    return NextResponse.json({ transcript: localSegments, plans: plans.map((plan, index) => ({ ...plan, clip: { startSeconds: offset + plan.clip.startSeconds, endSeconds: offset + plan.clip.endSeconds }, project_id: projectIds[index], viral_explainer: explainerPlan })), project_ids: projectIds, batch_count: projectIds.length }, { headers: noStoreHeaders() });
+  } catch (cause) {
+    console.error('AI transcription pipeline failed', cause);
+    return NextResponse.json({ error: 'Transkripsi AI gagal diproses di server. Coba lagi.' }, { status: 502, headers: noStoreHeaders() });
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
-
-  return NextResponse.json({ transcript: localSegments, plans: plans.map((plan, index) => ({ ...plan, clip: { startSeconds: offset + plan.clip.startSeconds, endSeconds: offset + plan.clip.endSeconds }, project_id: projectIds[index], viral_explainer: explainerPlan })), project_ids: projectIds, batch_count: projectIds.length }, { headers: noStoreHeaders() });
 }
