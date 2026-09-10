@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildExplainerPlanFromSegments } from './viral-explainer-adapter';
+import { buildExplainerPlanFromSegments, rebaseTranscriptSegments } from './viral-explainer-adapter';
 
 describe('viral explainer transcript adapter', () => {
   it('maps AI transcript segments into the native explainer plan', () => {
@@ -17,5 +17,17 @@ describe('viral explainer transcript adapter', () => {
     expect(plan.cta?.text).toContain('Try it now');
     expect(plan.reframe.format).toBe('9:16');
     expect(plan.clips.length).toBeGreaterThan(0);
+  });
+
+  it('rebases source timestamps into the selected clip timebase', () => {
+    expect(rebaseTranscriptSegments([
+      { start: 30, end: 32, text: 'hook' },
+      { start: 32, end: 35, text: 'detail' },
+      { start: 35, end: 38, text: 'cta' },
+    ], 30, 6)).toEqual([
+      { start: 0, end: 2, text: 'hook' },
+      { start: 2, end: 5, text: 'detail' },
+      { start: 5, end: 6, text: 'cta' },
+    ]);
   });
 });

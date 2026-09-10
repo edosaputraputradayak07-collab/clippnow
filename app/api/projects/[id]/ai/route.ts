@@ -6,7 +6,7 @@ import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/def
 import { sameOrigin, noStoreHeaders } from '@/lib/security/request';
 import { buildViralEditPlans, type ViralGoal } from '@/lib/ai/viral-edit-plan';
 import { selectClipWords } from '@/lib/ai/transcript-clip';
-import { buildExplainerPlanFromSegments } from '@/lib/viral-explainer-adapter';
+import { buildExplainerPlanFromSegments, rebaseTranscriptSegments } from '@/lib/viral-explainer-adapter';
 
 const BUCKET = 'clippnow-videos';
 const OPENAI_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -49,7 +49,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const offset = Number(project.start_seconds) || 0;
   const end = Number(project.end_seconds);
   const duration = Math.max(0.1, end - offset);
-  const localSegments = (transcription.segments ?? []).map(segment => ({ start: Math.max(0, segment.start), end: Math.min(duration, segment.end), text: segment.text.trim() })).filter(segment => segment.end > segment.start && segment.text);
+  const sourceSegments = (transcription.segments ?? []).map(segment => ({ start: Number(segment.start), end: Number(segment.end), text: String(segment.text ?? '').trim() }));
+  const localSegments = rebaseTranscriptSegments(sourceSegments, offset, duration);
   const plans = buildViralEditPlans({ durationSeconds: duration, format: project.format, goal: requestedGoal, transcript: localSegments, count });
   const explainerPlan = buildExplainerPlanFromSegments(localSegments, { duration, format: project.format === '1:1' || project.format === '16:9' ? project.format : '9:16', maxClips: count });
   if (!plans.length) return NextResponse.json({ error: 'AI belum menemukan momen yang cukup berbeda untuk dibuat menjadi clip.' }, { status: 422, headers: noStoreHeaders() });
@@ -59,7 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const first = plans[0];
   const firstStart = offset + first.clip.startSeconds;
   const firstEnd = offset + first.clip.endSeconds;
-  const firstWords = selectClipWords(transcription.words ?? [], first.clip.startSeconds, first.clip.endSeconds);
+  const firstWords = selectClipWords(transcription.words ?? [], firstStart, firstEnd);
   const firstEditPlan = { ...first, transcript: localSegments, words: firstWords, viral_explainer: explainerPlan };
   const { error: firstUpdateError } = await admin.from('projects').update({ start_seconds: firstStart, end_seconds: firstEnd, edit_mode: 'viral', subtitle_style: first.subtitle.style, viral_score: first.score, edit_plan: firstEditPlan, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
   if (firstUpdateError) return NextResponse.json({ error: 'Hasil AI tidak dapat disimpan. Coba lagi.' }, { status: 500, headers: noStoreHeaders() });
@@ -79,7 +80,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const start = offset + plan.clip.startSeconds;
     const finish = offset + plan.clip.endSeconds;
-    const words = selectClipWords(transcription.words ?? [], plan.clip.startSeconds, plan.clip.endSeconds);
+    const words = selectClipWords(transcription.words ?? [], start, finish);
     const childEditPlan = { ...plan, transcript: localSegments, words, viral_explainer: explainerPlan };
     const { data: child, error: childError } = await admin.from('projects').insert({ user_id: user.id, name: `${project.name || 'Viral Clip'} • ${index + 1}`, original_filename: project.original_filename, start_seconds: start, end_seconds: finish, format: project.format, source_path: project.source_path, status: 'queued', credit_reference: owner ? crypto.randomUUID() : reference, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: childEditPlan }).select('id').single();
     if (childError || !child) {
