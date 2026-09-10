@@ -61,7 +61,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const firstStart = offset + first.clip.startSeconds;
   const firstEnd = offset + first.clip.endSeconds;
   const firstWords = selectClipWords(transcription.words ?? [], firstStart, firstEnd);
-  const firstEditPlan = { ...first, transcript: localSegments, words: firstWords, viral_explainer: explainerPlan };
+  const firstEditPlan = { ...first, transcript: localSegments, transcript_origin_seconds: offset, words: firstWords, viral_explainer: explainerPlan };
   const { error: firstUpdateError } = await admin.from('projects').update({ start_seconds: firstStart, end_seconds: firstEnd, edit_mode: 'viral', subtitle_style: first.subtitle.style, viral_score: first.score, edit_plan: firstEditPlan, updated_at: new Date().toISOString() }).eq('id', project.id).eq('user_id', user.id);
   if (firstUpdateError) return NextResponse.json({ error: 'Hasil AI tidak dapat disimpan. Coba lagi.' }, { status: 500, headers: noStoreHeaders() });
   projectIds.push(project.id);
@@ -81,7 +81,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const start = offset + plan.clip.startSeconds;
     const finish = offset + plan.clip.endSeconds;
     const words = selectClipWords(transcription.words ?? [], start, finish);
-    const childEditPlan = { ...plan, transcript: localSegments, words, viral_explainer: explainerPlan };
+    const childEditPlan = { ...plan, transcript: localSegments, transcript_origin_seconds: offset, words, viral_explainer: explainerPlan };
     const { data: child, error: childError } = await admin.from('projects').insert({ user_id: user.id, name: `${project.name || 'Viral Clip'} • ${index + 1}`, original_filename: project.original_filename, start_seconds: start, end_seconds: finish, format: project.format, source_path: project.source_path, status: 'queued', credit_reference: owner ? crypto.randomUUID() : reference, edit_mode: 'viral', subtitle_style: plan.subtitle.style, viral_score: plan.score, edit_plan: childEditPlan }).select('id').single();
     if (childError || !child) {
       if (!owner) await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: reference });

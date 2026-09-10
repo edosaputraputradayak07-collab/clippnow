@@ -7,7 +7,7 @@ import { downloadPrivateVideo, uploadPrivateVideo } from './storage';
 import { buildSubtitlePlan, type SubtitlePosition, type SubtitleStyle } from '@/lib/vidklipral/subtitles/subtitle-plan';
 import { subtitlePlanToAss } from '@/lib/vidklipral/subtitles/ass-renderer';
 import { buildViralExplainerPlan, type TranscriptCue } from '@/lib/viral-explainer';
-import { viralExplainerPlanToEditPlan } from '@/lib/viral-explainer-render';
+import { clipTranscriptForRender, viralExplainerPlanToEditPlan } from '@/lib/viral-explainer-render';
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 async function claim(jobId: string) { const admin = createAdminClient(); const { data, error } = await admin.rpc('claim_clippnow_job', { p_job_id: jobId, p_worker_id: workerId, p_lease_seconds: 900 }); if (error) throw error; return data; }
@@ -24,6 +24,7 @@ type EditPlan = {
   subtitle?: { style?: SubtitleEditStyle; position?: SubtitlePosition; keywords?: string[]; hook?: { text: string; startSeconds: number; endSeconds: number } };
   words?: LegacySubtitleWord[];
   transcript?: TranscriptCue[];
+  transcript_origin_seconds?: number;
   punchIns?: Array<{ start: number; end: number; strength: 'medium' | 'strong' }>;
   reframe?: { mode: 'face-priority' | 'center'; format: '9:16' | '1:1' | '16:9' };
 };
@@ -46,14 +47,18 @@ export async function processJob(jobId: string) {
   try {
     await downloadPrivateVideo(project.source_path, input);
     const storedEditPlan = (project.edit_plan ?? {}) as EditPlan;
-    const nativeViralPlan = project.edit_mode === 'viral' && Array.isArray(storedEditPlan.transcript) && storedEditPlan.transcript.length
-      ? buildViralExplainerPlan(storedEditPlan.transcript, {
-          duration: Math.max(0.1, Number(project.end_seconds) - Number(project.start_seconds)),
+    const renderDuration = Math.max(0.1, Number(project.end_seconds) - Number(project.start_seconds));
+    const transcriptOrigin = Number.isFinite(storedEditPlan.transcript_origin_seconds) ? Number(storedEditPlan.transcript_origin_seconds) : 0;
+    const renderClipStart = Number(project.start_seconds) - transcriptOrigin;
+    const renderTranscript = Array.isArray(storedEditPlan.transcript) ? clipTranscriptForRender(storedEditPlan.transcript, renderClipStart, renderDuration) : [];
+    const nativeViralPlan = project.edit_mode === 'viral' && renderTranscript.length
+      ? buildViralExplainerPlan(renderTranscript, {
+          duration: renderDuration,
           format: project.format,
           maxClips: 1,
         })
       : null;
-    const nativeRenderPlan = nativeViralPlan ? viralExplainerPlanToEditPlan(nativeViralPlan, storedEditPlan.transcript ?? []) : null;
+    const nativeRenderPlan = nativeViralPlan ? viralExplainerPlanToEditPlan(nativeViralPlan, renderTranscript) : null;
     const editPlan: EditPlan = nativeRenderPlan
       ? { ...storedEditPlan, ...nativeRenderPlan, subtitle: { ...storedEditPlan.subtitle, ...nativeRenderPlan.subtitle } }
       : storedEditPlan;
@@ -78,7 +83,7 @@ export async function processJob(jobId: string) {
       sourcePath: input,
       outputPath: output,
       startSeconds: Number(project.start_seconds),
-      durationSeconds: Number(project.end_seconds) - Number(project.start_seconds),
+      durationSeconds: renderDuration,
       format: project.format,
       subtitlePath,
       effects: project.edit_mode === 'viral' ? editPlan.effects : [],
