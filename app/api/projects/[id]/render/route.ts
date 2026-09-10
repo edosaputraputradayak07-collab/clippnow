@@ -6,6 +6,7 @@ import { getBearerToken, getMobileUser } from '@/lib/auth/mobile-request';
 import { getClientIp, logSecurityEvent, securityGuard } from '@/lib/security/defense';
 import { noStoreHeaders, sameOrigin } from '@/lib/security/request';
 import { buildRenderCreditReference } from '@/lib/billing/credit-reference';
+import { canRerenderCompletedJob } from '@/lib/rendering/rerender';
 import { startRenderWorkflow } from '@/workflows/render-video';
 
 export const runtime = 'nodejs';
@@ -29,8 +30,55 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = createAdminClient();
   const { data: job, error } = await admin.from('jobs').select('id,status,attempts').eq('project_id', id).eq('user_id', user.id).maybeSingle();
   if (error || !job) return NextResponse.json({ error: 'Render job tidak ditemukan.' }, { status: 404, headers: noStoreHeaders() });
-  if (job.status === 'completed') return NextResponse.json({ status: 'completed' }, { headers: noStoreHeaders() });
+
+  let forceRerender = false;
+  try {
+    const body = await request.json();
+    forceRerender = body?.force === true;
+  } catch {
+    // Empty request bodies remain valid for the normal render path.
+  }
+
   if (job.status === 'processing') return NextResponse.json({ status: 'processing' }, { status: 202, headers: noStoreHeaders() });
+  if (job.status === 'queued') return NextResponse.json({ status: 'queued' }, { status: 202, headers: noStoreHeaders() });
+
+  if (job.status === 'completed' && !forceRerender) {
+    return NextResponse.json({ status: 'completed' }, { headers: noStoreHeaders() });
+  }
+
+  if (job.status === 'completed' && forceRerender) {
+    const { data: project, error: projectError } = await admin.from('projects').select('id,credit_reference,status').eq('id', id).eq('user_id', user.id).maybeSingle();
+    if (projectError || !project?.credit_reference || !canRerenderCompletedJob(job.status)) {
+      return NextResponse.json({ error: 'Project render tidak valid.' }, { status: 500, headers: noStoreHeaders() });
+    }
+
+    const attempt = Number(job.attempts ?? 0) + 1;
+    let rerenderReference: string;
+    try {
+      rerenderReference = buildRenderCreditReference(project.id, attempt);
+    } catch {
+      return NextResponse.json({ error: 'Batas percobaan render tercapai.' }, { status: 409, headers: noStoreHeaders() });
+    }
+
+    const { error: creditError } = await admin.rpc('reserve_clippnow_credit', { p_user_id: user.id, p_reference: rerenderReference });
+    if (creditError) {
+      const status = creditError.message.includes('insufficient_credits') ? 402 : 500;
+      return NextResponse.json({ error: status === 402 ? 'Kredit kamu habis. Beli paket untuk melanjutkan.' : 'Gagal menggunakan kredit untuk render ulang.' }, { status, headers: noStoreHeaders() });
+    }
+
+    const { error: projectUpdateError } = await admin.from('projects').update({ credit_reference: rerenderReference, status: 'queued', output_path: null, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).eq('credit_reference', project.credit_reference).eq('status', project.status);
+    if (projectUpdateError) {
+      await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: rerenderReference });
+      return NextResponse.json({ error: 'Gagal menyiapkan render ulang.' }, { status: 500, headers: noStoreHeaders() });
+    }
+
+    const { error: jobUpdateError } = await admin.from('jobs').update({ status: 'queued', progress: 0, error_code: null, error_message: null, failed_at: null, completed_at: null, started_at: null, worker_id: null, lease_expires_at: null, last_heartbeat_at: null, output_path: null, attempts: attempt, updated_at: new Date().toISOString() }).eq('id', job.id).eq('user_id', user.id).eq('status', 'completed');
+    if (jobUpdateError) {
+      await admin.from('projects').update({ credit_reference: project.credit_reference, status: project.status, output_path: null, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).eq('credit_reference', rerenderReference);
+      await admin.rpc('release_clippnow_credit', { p_user_id: user.id, p_reference: rerenderReference });
+      return NextResponse.json({ error: 'Gagal menyiapkan render ulang.' }, { status: 500, headers: noStoreHeaders() });
+    }
+  }
 
   if (job.status === 'failed') {
     const { data: project, error: projectError } = await admin.from('projects').select('id,credit_reference,status').eq('id', id).eq('user_id', user.id).maybeSingle();
