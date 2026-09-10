@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildViralExplainerPlan, type TranscriptCue } from './viral-explainer';
-import { viralExplainerPlanToEditPlan } from './viral-explainer-render';
+import { clipTranscriptForRender, viralExplainerPlanToEditPlan } from './viral-explainer-render';
 
 describe('viral explainer render mapping', () => {
   it('turns the explainer plan into native render instructions', () => {
@@ -30,5 +30,17 @@ describe('viral explainer render mapping', () => {
 
     expect(editPlan.punchIns?.every((item) => item.start >= 0 && item.end <= 10)).toBe(true);
     expect(editPlan.reframe?.mode).toBe('face-priority');
+  });
+
+  it('rebases stored transcript into the render clip timebase', () => {
+    expect(clipTranscriptForRender([
+      { start: 0, end: 2, text: 'intro' },
+      { start: 10, end: 12, text: 'hook' },
+      { start: 12, end: 15, text: 'detail' },
+      { start: 20, end: 23, text: 'cta' },
+    ], 10, 5)).toEqual([
+      { start: 0, end: 2, text: 'hook' },
+      { start: 2, end: 5, text: 'detail' },
+    ]);
   });
 });
