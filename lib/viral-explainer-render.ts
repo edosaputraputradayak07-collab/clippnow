@@ -33,7 +33,6 @@ function extractKeywords(cues: TranscriptCue[]) {
 export function clipTranscriptForRender(cues: TranscriptCue[], clipStart: number, duration: number): TranscriptCue[] {
   const safeStart = Number.isFinite(clipStart) ? clipStart : 0;
   const safeDuration = Math.max(0, Number.isFinite(duration) ? duration : 0);
-  const clipEnd = safeStart + safeDuration;
 
   return cues
     .map((cue) => ({
