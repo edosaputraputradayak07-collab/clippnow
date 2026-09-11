@@ -3,6 +3,7 @@ export type SocialProvider = 'google' | 'facebook' | 'tiktok';
 export const SOCIAL_PROVIDERS: SocialProvider[] = ['google', 'facebook', 'tiktok'];
 
 export function getSocialProviderLabel(provider: SocialProvider): string {
+  if (provider === 'tiktok') return 'TikTok';
   return provider[0].toUpperCase() + provider.slice(1);
 }
 
