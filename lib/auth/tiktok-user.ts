@@ -10,7 +10,12 @@ type TikTokUserResponse = {
 
 export function toSupabaseUserInfo(payload: TikTokUserResponse) {
   const user = payload.data?.user;
-  const sub = user?.open_id?.trim();
+
+  if (!user) {
+    throw new Error('TikTok user id missing');
+  }
+
+  const sub = user.open_id?.trim();
 
   if (!sub) {
     throw new Error('TikTok user id missing');
