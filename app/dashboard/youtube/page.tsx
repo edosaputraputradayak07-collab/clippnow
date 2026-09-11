@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { listYouTubeAccounts, listYouTubeVideos } from '@/lib/youtube/client';
 
+type YouTubeVideo = Awaited<ReturnType<typeof listYouTubeVideos>>[number];
+
 export default async function YouTubePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -46,7 +48,7 @@ export default async function YouTubePage() {
         {videos.length > 0 && <section className="mt-8">
           <div className="flex items-end justify-between"><div><h2 className="text-lg font-black">Video terbaru</h2><p className="mt-1 text-xs text-slate-600">Pilih video untuk diproses menjadi clip.</p></div><span className="text-[10px] font-bold text-slate-600">{videos.length} VIDEO</span></div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {videos.map(video => <article key={video.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[.025]">
+            {videos.map((video: YouTubeVideo) => <article key={video.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[.025]">
               {video.thumbnail && <img src={video.thumbnail} alt="" className="aspect-video w-full object-cover" />}
               <div className="p-4"><h3 className="line-clamp-2 text-sm font-bold">{video.title}</h3><p className="mt-2 text-[10px] text-slate-600">{video.publishedAt ? new Date(video.publishedAt).toLocaleDateString('id-ID') : ''}</p><a href={`/dashboard/create?youtube=${encodeURIComponent(`https://www.youtube.com/watch?v=${video.id}`)}`} className="mt-4 inline-flex rounded-lg bg-cyan-300 px-3 py-2 text-[10px] font-black text-slate-950">Buat Viral Clip →</a></div>
             </article>)}
