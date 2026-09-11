@@ -3,7 +3,8 @@
 import { FormEvent, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getLoginErrorMessage } from '@/lib/auth/login-message';
-import { getSocialProviderError, getSocialProviderLabel, type SocialProvider } from '@/lib/auth/social-providers';
+import { getOAuthErrorMessage } from '@/lib/auth/oauth-error';
+import { getSocialProviderLabel, type SocialProvider } from '@/lib/auth/social-providers';
 import { authExperience } from '@/lib/ui/marketing-experience';
 import { getPasswordInputType } from '@/lib/ui/password-visibility';
 
@@ -50,7 +51,7 @@ export default function LoginPage() {
     });
 
     if (oauthError) {
-      setError(getSocialProviderError(provider));
+      setError(getOAuthErrorMessage(oauthError.message, getSocialProviderLabel(provider)));
       setSocialLoading('');
     }
   }
