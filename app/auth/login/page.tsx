@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { getLoginErrorMessage } from '@/lib/auth/login-message';
+import { runPasswordLogin } from '@/lib/auth/login-flow';
 import { getOAuthErrorMessage } from '@/lib/auth/oauth-error';
 import { getSocialProviderLabel, type SocialProvider } from '@/lib/auth/social-providers';
 import { authExperience } from '@/lib/ui/marketing-experience';
@@ -21,14 +21,10 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const result = await runPasswordLogin(createClient, email.trim(), password);
 
-    if (signInError) {
-      setError(getLoginErrorMessage(signInError));
+    if (!result.ok) {
+      setError(result.message);
       setLoading(false);
       return;
     }
@@ -40,18 +36,23 @@ export default function LoginPage() {
     setSocialLoading(provider);
     setError('');
 
-    const supabase = createClient();
-    const oauthProvider = (provider === 'tiktok' ? 'custom:tiktok' : provider) as Parameters<
-      typeof supabase.auth.signInWithOAuth
-    >[0]['provider'];
+    try {
+      const supabase = createClient();
+      const oauthProvider = (provider === 'tiktok' ? 'custom:tiktok' : provider) as Parameters<
+        typeof supabase.auth.signInWithOAuth
+      >[0]['provider'];
 
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: oauthProvider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: oauthProvider,
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
 
-    if (oauthError) {
-      setError(getOAuthErrorMessage(oauthError.message, getSocialProviderLabel(provider)));
+      if (oauthError) {
+        setError(getOAuthErrorMessage(oauthError.message, getSocialProviderLabel(provider)));
+        setSocialLoading('');
+      }
+    } catch {
+      setError('Login sosial belum bisa dijalankan. Periksa konfigurasi autentikasi lalu coba lagi.');
       setSocialLoading('');
     }
   }
@@ -157,7 +158,7 @@ function SocialButton({ provider, loading, disabled, onClick }: { provider: Soci
 }
 
 function GoogleIcon() {
-  return <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.27c0-.74-.07-1.45-.2-2.13H12v4.03h5.22a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.7 2.93-4.2 2.93-7.26Z"/><path fill="#34A853" d="M12 21.76c2.64 0 4.86-.87 6.48-2.36l-3.14-2.43c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.5A9.8 9.8 0 0 0 12 21.76Z"/><path fill="#FBBC05" d="M6.49 13.83A5.89 5.89 0 0 1 6.18 12c0-.64.11-1.26.31-1.83v-2.5H3.24A9.78 9.78 0 0 0 2.2 12c0 1.58.38 3.08 1.04 4.33l3.25-2.5Z"/><path fill="#EA4335" d="M12 6.11c1.44 0 2.73.5 3.75 1.48l2.81-2.81C16.85 3.16 14.64 2.24 12 2.24a9.8 9.8 0 0 0-8.76 5.43l3.25 2.5C7.27 7.84 9.44 6.11 12 6.11Z"/></svg>;
+  return <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.27c0-.74-.07-1.45-.2-2.13H12v4.03h5.22a4.47 4.47 0 0 1-1.94 2.93v2.43h3.14c1.84-1.7 2.93-4.2 2.93-7.26Z"/><path fill="#34A853" d="M12 21.76c2.64 0 4.86-.87 6.48-2.36l-3.14-2.43c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.06H3.24v2.5A9.8 9.8 0 0 0 12 21.76Z"/><path fill="#FBBC05" d="M6.49 13.83A5.89 5.89 0 0 1 6.18 12c0-.64.11-1.26.31-1.83v-2.5H3.24A9.78 9.78 0 0 0 2.2 12c0 1.58.38 3.08 1.04 4.33l3.25-2.5Z"/><path fill="#EA4335" d="M12 6.11c1.44 0 2.73.5 3.75 1.48l2.81-2.81C16.85 3.16 14.64 2.24 12 2.24a9.8 9.8 0 0 0-8.76 5.43l3.25 2.5 3.25-2.5C7.27 7.84 9.44 6.11 12 6.11Z"/></svg>;
 }
 
 function FacebookIcon() {
