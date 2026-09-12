@@ -8,6 +8,7 @@ describe('runPasswordLogin', () => {
     }, 'user@example.com', 'password');
 
     expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Expected login to fail.');
     expect(result.message).toBe('Login belum bisa dijalankan. Konfigurasi autentikasi belum tersedia.');
   });
 
@@ -19,6 +20,7 @@ describe('runPasswordLogin', () => {
     );
 
     expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Expected login to fail.');
     expect(result.message).toBe('Login gagal terhubung ke server. Periksa koneksi lalu coba lagi.');
   });
 });
