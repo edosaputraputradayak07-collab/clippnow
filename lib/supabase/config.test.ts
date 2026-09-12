@@ -12,9 +12,10 @@ describe('getSupabaseConfig', () => {
     });
   });
 
-  it('requires the public publishable key when deployment variables are unavailable', () => {
-    expect(() => getSupabaseConfig({})).toThrow(
-      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required.',
-    );
+  it('falls back to the bundled public Supabase configuration when deployment variables are unavailable', () => {
+    const config = getSupabaseConfig({});
+
+    expect(config.url).toBe('https://hwsoqzdqdqsgeswtsjih.supabase.co');
+    expect(config.publishableKey).toMatch(/^sb_publishable_/);
   });
 });
