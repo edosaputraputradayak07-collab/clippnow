@@ -12,9 +12,9 @@ describe('getSupabaseConfig', () => {
     });
   });
 
-  it('has a safe public fallback for the configured ClippNow Supabase project', () => {
-    const config = getSupabaseConfig({});
-    expect(config.url).toBe('https://hailjjuaxatdaiskazgq.supabase.co');
-    expect(config.publishableKey).toMatch(/^sb_publishable_/);
+  it('requires the public publishable key when deployment variables are unavailable', () => {
+    expect(() => getSupabaseConfig({})).toThrow(
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required.',
+    );
   });
 });
