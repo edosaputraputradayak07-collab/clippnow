@@ -1,11 +1,14 @@
-const CLIPPNOW_SUPABASE_URL = 'https://hailjjuaxatdaiskazgq.supabase.co';
-const CLIPPNOW_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_VhYzxCvRiKsl-maZByhwRA_k_HBsOCZ';
+const CLIPPNOW_SUPABASE_URL = 'https://hwsoqzdqdqsgeswtsjih.supabase.co';
 
 type SupabaseEnv = Record<string, string | undefined>;
 
 export function getSupabaseConfig(env: SupabaseEnv = process.env) {
-  return {
-    url: env.NEXT_PUBLIC_SUPABASE_URL?.trim() || CLIPPNOW_SUPABASE_URL,
-    publishableKey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || CLIPPNOW_SUPABASE_PUBLISHABLE_KEY,
-  };
+  const url = env.NEXT_PUBLIC_SUPABASE_URL?.trim() || CLIPPNOW_SUPABASE_URL;
+  const publishableKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+
+  if (!publishableKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required.');
+  }
+
+  return { url, publishableKey };
 }
