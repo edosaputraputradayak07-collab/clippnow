@@ -1,8 +1,12 @@
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtu.be']);
 
+function normalizeYouTubeInput(value: string): string {
+  return value.trim().replace(/^['"`]+|['"`]+$/g, '').trim();
+}
+
 export function getYouTubeVideoId(value: string): string | null {
   try {
-    const url = new URL(value.trim());
+    const url = new URL(normalizeYouTubeInput(value));
     const host = url.hostname.toLowerCase();
     if (!YOUTUBE_HOSTS.has(host)) return null;
 
