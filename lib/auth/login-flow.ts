@@ -1,4 +1,5 @@
 import { getLoginErrorMessage } from './login-message';
+import { validateLoginCredentials } from './credential-validation';
 
 type PasswordAuthClient = {
   auth: {
@@ -22,9 +23,12 @@ export async function runPasswordLogin(
   password: string,
   timeoutMs = 15000,
 ): Promise<LoginResult> {
+  const credentials = validateLoginCredentials(email, password);
+  if (!credentials.ok) return credentials;
+
   try {
     const client = createClient();
-    const request = client.auth.signInWithPassword({ email, password });
+    const request = client.auth.signInWithPassword({ email: credentials.email, password });
     const timeout = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error('AUTH_TIMEOUT')), timeoutMs);
     });
