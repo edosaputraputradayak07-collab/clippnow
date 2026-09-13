@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 const files = ['app/auth/login/page.tsx', 'app/dashboard/page.tsx', 'app/dashboard/create/create-studio.tsx'];
 
-describe('ClippNow user-facing branding', () => {
-  it('does not expose the legacy Vidklipral brand', () => {
+describe('Vidklipral user-facing branding', () => {
+  it('keeps the official Vidklipral brand on user-facing surfaces', () => {
     for (const file of files) {
-      expect(readFileSync(file, 'utf8'), file).not.toContain('Vidklipral');
+      const content = readFileSync(file, 'utf8');
+      expect(content, file).toContain('Vidklipral');
+      expect(content, file).not.toContain('ClippNow');
+      expect(content, file).not.toContain('ClippNowe');
     }
   });
 });
