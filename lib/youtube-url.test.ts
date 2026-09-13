@@ -12,6 +12,11 @@ describe('YouTube URL helpers', () => {
     expect(getYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ?t=42')).toBe('dQw4w9WgXcQ');
   });
 
+  it('accepts copied URLs with surrounding spaces or quotes', () => {
+    expect(getYouTubeVideoId('  "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  ')).toBe('dQw4w9WgXcQ');
+    expect(getYouTubeVideoId("'https://youtu.be/dQw4w9WgXcQ'" )).toBe('dQw4w9WgXcQ');
+  });
+
   it('rejects non-YouTube URLs', () => {
     expect(isYouTubeUrl('https://example.com/video.mp4')).toBe(false);
     expect(getYouTubeVideoId('https://example.com/video.mp4')).toBeNull();
