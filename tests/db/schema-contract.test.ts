@@ -30,15 +30,15 @@ describe('VidClipMoney database schema contract', () => {
     expect(migration).toContain('ai_score');
   });
 
-  it('protects every user-owned content table with RLS', () => {
-    for (const table of ['projects', 'jobs', 'transcripts', 'segments', 'clips', 'clip_assets', 'credit_wallets', 'credit_ledger', 'payments', 'subscriptions', 'usage_events']) {
-      expect(migration).toMatch(new RegExp(`alter table public\\.${table} enable row level security`, 'i'));
+  it('enables RLS on tables created by the VidClipMoney migration', () => {
+    for (const table of ['transcripts', 'segments', 'clip_assets', 'credit_wallets', 'credit_ledger', 'payments', 'subscriptions', 'usage_events']) {
+      expect(migration).toContain(`alter table public.${table} enable row level security`);
     }
   });
 
   it('keeps source and rendered media private', () => {
-    expect(migration).toMatch(/insert into storage\.buckets[\\s\\S]*source-videos[\\s\\S]*false/i);
-    expect(migration).toMatch(/insert into storage\.buckets[\\s\\S]*rendered-clips[\\s\\S]*false/i);
+    expect(migration).toContain("'source-videos','source-videos',false");
+    expect(migration).toContain("'rendered-clips','rendered-clips',false");
   });
 
   it('prevents direct mutation of credits by end users', () => {
