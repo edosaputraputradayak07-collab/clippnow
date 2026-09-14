@@ -1,0 +1,1 @@
+Task 5 acceptance target: authenticated project create/retrieve, server-side owner scoping, and per-user idempotency. Verify npm test, tsc, and production build in CI before locking the task. Do not merge to main without explicit approval.
