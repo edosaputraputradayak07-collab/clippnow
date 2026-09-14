@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Vidklipral — AI Video Clip Studio',
-  description: 'Ubah video panjang menjadi konten pendek dengan Vidklipral.',
+  title: 'New Project',
+  description: 'Project baru.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

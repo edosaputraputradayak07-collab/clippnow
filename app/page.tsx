@@ -1,5 +1,8 @@
-import { redirect } from 'next/navigation';
-
 export default function Home() {
-  redirect('/dashboard/create');
+  return (
+    <main className="reset-page">
+      <h1>Project siap dimulai dari nol.</h1>
+      <p>Kode ClippNow dan Vidklipral sudah dibersihkan dari aplikasi ini.</p>
+    </main>
+  );
 }
