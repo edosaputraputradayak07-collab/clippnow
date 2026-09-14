@@ -25,6 +25,7 @@ jobs:
         run: npm run build
 
   mobile:
+    if: ${{ hashFiles('mobile/package.json') != '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
