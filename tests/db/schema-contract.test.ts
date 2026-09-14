@@ -41,8 +41,8 @@ describe('VidClipMoney database schema contract', () => {
     expect(migration).toMatch(/insert into storage\.buckets[\\s\\S]*rendered-clips[\\s\\S]*false/i);
   });
 
-  it('prevents direct mutation of the credit ledger through RLS', () => {
-    expect(migration).toMatch(/credit_ledger.*for all/i);
-    expect(migration).toMatch(/credit_ledger.*service_role/i);
+  it('prevents direct mutation of credits by end users', () => {
+    expect(migration).toMatch(/credit_wallets_service_role.*for all.*auth\.role\(\) = 'service_role'/i);
+    expect(migration).toMatch(/credit_ledger_service_role.*for all.*auth\.role\(\) = 'service_role'/i);
   });
 });
