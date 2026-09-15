@@ -16,7 +16,8 @@ export function validateSourceVideo(input: { contentType: string; size: number }
 }
 
 export function sanitizeFilename(filename: string): string {
-  const normalized = filename.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-');
+  const basename = filename.trim().split(/[\\/]/).pop() ?? '';
+  const normalized = basename.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^[.-]+/, '');
   return normalized.slice(0, 120) || 'video';
 }
 
