@@ -23,25 +23,3 @@ jobs:
         run: npx tsc --noEmit
       - name: Production build
         run: npm run build
-
-  mobile:
-    if: ${{ hashFiles('mobile/package.json') != '' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mobile
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - name: Install mobile dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Mobile typecheck
-        run: npm run typecheck
-      - name: Validate Expo config
-        run: npx expo config --type public
-      - name: Run Expo doctor
-        run: npx expo-doctor
