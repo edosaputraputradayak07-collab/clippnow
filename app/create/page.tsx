@@ -7,6 +7,27 @@ import { SourceInput } from '../../components/create/source-input';
 import { createSupabaseBrowserClient } from '../../src/lib/supabase/browser';
 import type { ContentMode } from '../../src/lib/types/core';
 
+function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const durationMs = Math.round(video.duration * 1000);
+      URL.revokeObjectURL(url);
+      video.remove();
+      if (!Number.isFinite(durationMs) || durationMs <= 0) reject(new Error('VIDEO_DURATION_UNAVAILABLE'));
+      else resolve(durationMs);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      video.remove();
+      reject(new Error('VIDEO_METADATA_READ_FAILED'));
+    };
+    video.src = url;
+  });
+}
+
 export default function CreatePage() {
   const [mode, setMode] = useState<ContentMode>('affiliate');
   const [source, setSource] = useState<File | string | null>(null);
@@ -15,11 +36,21 @@ export default function CreatePage() {
 
   async function startProcessing() {
     if (!source) return;
-    setBusy(true); setMessage('Menyiapkan project…');
+    setBusy(true); setMessage('Membaca durasi video…');
     try {
       const isFile = source instanceof File;
+      const durationMs = isFile
+        ? await readVideoDuration(source)
+        : await (async () => {
+            const response = await fetch('/api/source-metadata', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sourceType: 'youtube', sourceUrl: source }) });
+            const body = await response.json() as { error?: string; durationMs?: number };
+            if (!response.ok || !body.durationMs) throw new Error(body.error || 'YOUTUBE_DURATION_UNAVAILABLE');
+            return body.durationMs;
+          })();
+
       const idempotencyKey = crypto.randomUUID();
-      const projectResponse = await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, sourceType: isFile ? 'upload' : 'youtube', sourceUrl: isFile ? undefined : source, originalFilename: isFile ? source.name : undefined, idempotencyKey }) });
+      setMessage('Menyiapkan project…');
+      const projectResponse = await fetch('/api/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, sourceType: isFile ? 'upload' : 'youtube', sourceUrl: isFile ? undefined : source, originalFilename: isFile ? source.name : undefined, durationMs, idempotencyKey }) });
       const projectBody = await projectResponse.json() as { error?: string; project?: { id: string } };
       if (!projectResponse.ok || !projectBody.project) throw new Error(projectBody.error || 'PROJECT_CREATE_FAILED');
       const projectId = projectBody.project.id;
