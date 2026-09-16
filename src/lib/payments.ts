@@ -5,6 +5,8 @@ export type PaymentRequest = { userId: string; credits: number; amountIdr: numbe
 export type PaymentResult = { provider: string; externalId: string; status: PaymentStatus; checkoutUrl: string | null };
 export type PaymentProvider = { name: string; createPayment: (input: PaymentRequest) => Promise<PaymentResult>; verifyWebhook: (rawBody: string, signature: string) => boolean };
 
+type PaymentEnv = Record<string, string | undefined>;
+
 export function verifyHmacSignature(rawBody: string, signature: string, secret: string): boolean {
   if (!rawBody || !signature || !secret) return false;
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -12,12 +14,10 @@ export function verifyHmacSignature(rawBody: string, signature: string, secret: 
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function createConfiguredPaymentProvider(env: NodeJS.ProcessEnv = process.env): PaymentProvider {
+export function createConfiguredPaymentProvider(env: PaymentEnv = process.env): PaymentProvider {
   const provider = (env.PAYMENT_PROVIDER || 'disabled').toLowerCase();
   const webhookSecret = env.PAYMENT_WEBHOOK_SECRET || '';
-  if (provider === 'disabled') {
-    return { name: 'disabled', createPayment: async () => { throw new Error('PAYMENT_PROVIDER_NOT_CONFIGURED'); }, verifyWebhook: () => false };
-  }
+  if (provider === 'disabled') return { name: 'disabled', createPayment: async () => { throw new Error('PAYMENT_PROVIDER_NOT_CONFIGURED'); }, verifyWebhook: () => false };
   const endpoint = env.PAYMENT_CREATE_URL;
   if (!endpoint) throw new Error('PAYMENT_CREATE_URL_REQUIRED');
   return {
