@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CONTENT_MODES } from '../../src/lib/types/core';
 import { selectDiverseCandidates, scoreSegment } from '../../src/lib/scoring';
 import type { ContentSegment } from '../../src/lib/segmentation';
 
@@ -19,6 +20,23 @@ describe('Task 9 scoring', () => {
     expect(result.score).toBeLessThanOrEqual(100);
     expect(result.signals.modeRelevance).toBeGreaterThan(0);
     expect(result.signals.cta).toBeGreaterThan(0);
+  });
+
+  it('gives every required mode a positive relevance signal for its vocabulary', () => {
+    const fixtures = {
+      affiliate: 'Beli sekarang, cek link untuk harga promo dan coba manfaat produk ini.',
+      seller: 'Produk kami berkualitas, pesan di toko dengan harga promo dan garansi.',
+      live_seller: 'Tanya jawab sekarang, stok terbatas, checkout dan dapatkan diskon promo.',
+      podcast: 'Menurut pengalaman saya, cerita ini memberi insight tentang pendapat dan kenapa hal itu terjadi.',
+      educator: 'Ini cara belajar: ikuti langkah, lihat fakta dan contoh, lalu ambil kesimpulan.',
+    } as const;
+
+    for (const mode of CONTENT_MODES) {
+      const result = scoreSegment(segment(mode, fixtures[mode], 0), mode);
+      expect(result.signals.modeRelevance).toBeGreaterThan(0);
+      expect(result.score).toBeGreaterThan(0);
+      expect(result.score).toBeLessThanOrEqual(100);
+    }
   });
 
   it('selects ranked candidates while filtering highly overlapping clips', () => {
