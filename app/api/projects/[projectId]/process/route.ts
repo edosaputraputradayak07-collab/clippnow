@@ -21,7 +21,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const jobId = randomUUID();
   const { data: wallet, error: reserveError } = await supabase.rpc('reserve_user_credits', { p_user_id: user.id, p_amount: credits, p_idempotency_key: `job:${jobId}:reserve`, p_reference_id: jobId });
   if (reserveError) return NextResponse.json({ error: reserveError.message === 'INSUFFICIENT_CREDITS' ? 'INSUFFICIENT_CREDITS' : 'CREDIT_RESERVATION_FAILED' }, { status: reserveError.message === 'INSUFFICIENT_CREDITS' ? 402 : 500 });
-  const { data: job, error: jobError } = await supabase.from('jobs').insert({ id: jobId, project_id: project.id, user_id: user.id, status: 'QUEUED', engine_status: 'QUEUED', mode: project.mode, attempts: 0, error_details: {} }).select('*').single();
+  const { data: job, error: jobError } = await supabase.from('jobs').insert({ id: jobId, project_id: project.id, user_id: user.id, kind: 'content_engine', status: 'queued', engine_status: 'QUEUED', mode: project.mode, attempts: 0, input_path: project.source_path, source_path: project.source_path, settings: { mode: project.mode } }).select('*').single();
   if (jobError) {
     await supabase.rpc('release_user_credits', { p_user_id: user.id, p_amount: credits, p_idempotency_key: `job:${jobId}:release`, p_reference_id: jobId });
     return NextResponse.json({ error: 'JOB_CREATE_FAILED' }, { status: 500 });
