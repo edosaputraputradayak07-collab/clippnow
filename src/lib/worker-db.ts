@@ -27,14 +27,9 @@ type ClaimedRow = {
 };
 
 function mapClaimedJob(row: ClaimedRow): ClaimedContentEngineJob {
-  if (!row.lease_id || !row.leased_until) {
-    throw new Error('WORKER_CLAIM_RESPONSE_INVALID');
-  }
-
+  if (!row.lease_id || !row.leased_until) throw new Error('WORKER_CLAIM_RESPONSE_INVALID');
   const leasedUntil = Date.parse(row.leased_until);
-  if (!Number.isFinite(leasedUntil)) {
-    throw new Error('WORKER_CLAIM_RESPONSE_INVALID');
-  }
+  if (!Number.isFinite(leasedUntil)) throw new Error('WORKER_CLAIM_RESPONSE_INVALID');
 
   return {
     id: row.id,
@@ -55,19 +50,57 @@ export async function claimNextContentEngineJob(
   if (!Number.isInteger(leaseMs) || leaseMs <= 0 || leaseMs > 3600000) {
     throw new Error('WORKER_LEASE_INVALID');
   }
-
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.rpc('claim_content_engine_job', {
+  const { data, error } = await createSupabaseAdminClient().rpc('claim_content_engine_job', {
     p_lease_ms: leaseMs,
   });
-
-  if (error) {
-    throw new Error(`WORKER_CLAIM_FAILED:${error.message}`);
-  }
-
+  if (error) throw new Error(`WORKER_CLAIM_FAILED:${error.message}`);
   const rows = (data ?? []) as ClaimedRow[];
   if (rows.length === 0) return null;
   if (rows.length !== 1) throw new Error('WORKER_CLAIM_RESPONSE_INVALID');
-
   return mapClaimedJob(rows[0]);
+}
+
+export async function updateContentEngineStage(
+  jobId: string,
+  fromStatus: string,
+  toStatus: string,
+  leaseId: string,
+  progress: number,
+): Promise<void> {
+  if (!jobId.trim() || !leaseId.trim()) throw new Error('WORKER_STAGE_INPUT_INVALID');
+  if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
+    throw new Error('WORKER_PROGRESS_INVALID');
+  }
+
+  const { data, error } = await createSupabaseAdminClient().rpc('update_content_engine_stage', {
+    p_job_id: jobId,
+    p_from_status: fromStatus,
+    p_to_status: toStatus,
+    p_lease_id: leaseId,
+    p_progress: progress,
+  });
+  if (error) throw new Error(`WORKER_STAGE_UPDATE_FAILED:${error.message}`);
+  if (!Array.isArray(data) || data.length !== 1 || data[0]?.updated !== true) {
+    throw new Error('WORKER_STAGE_OWNERSHIP_LOST');
+  }
+}
+
+export async function failContentEngineJob(
+  jobId: string,
+  leaseId: string,
+  errorDetails: string,
+): Promise<void> {
+  if (!jobId.trim() || !leaseId.trim() || !errorDetails.trim()) {
+    throw new Error('WORKER_FAILURE_INPUT_INVALID');
+  }
+
+  const { data, error } = await createSupabaseAdminClient().rpc('fail_content_engine_job', {
+    p_job_id: jobId,
+    p_lease_id: leaseId,
+    p_error: { message: errorDetails },
+  });
+  if (error) throw new Error(`WORKER_FAILURE_UPDATE_FAILED:${error.message}`);
+  if (!Array.isArray(data) || data.length !== 1 || data[0]?.updated !== true) {
+    throw new Error('WORKER_FAILURE_OWNERSHIP_LOST');
+  }
 }
