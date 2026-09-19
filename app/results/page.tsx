@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCurrentUser } from '../../src/lib/auth';
 import { createSupabaseServerClient } from '../../src/lib/supabase/server';
+import { ResultsStatus } from '../../components/results/results-status';
 
 export type ResultClip = { id: string; title: string; score: number; duration: string; reason: string; preview: string; download: string };
 
@@ -18,18 +19,59 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
   const user = await getCurrentUser();
   if (!user) return <ResultsView clips={[]} />;
   const { project, job } = await searchParams;
-  if (!project) return <ResultsView clips={[]} />;
+  if (!project || !job) return <ResultsView clips={[]} />;
+
   const supabase = await createSupabaseServerClient();
-  const { data: clips } = await supabase.from('clips').select('id,title,score,caption,output_path,status,start_ms,end_ms,ai_score,metadata').eq('project_id', project).eq('user_id', user.id).order('rank', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true });
+  const { data: jobRow } = await supabase
+    .from('jobs')
+    .select('status,engine_status,error_details')
+    .eq('id', job)
+    .eq('project_id', project)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!jobRow) return <ResultsView clips={[]} />;
+
+  const { data: clips } = await supabase
+    .from('clips')
+    .select('id,title,score,caption,output_path,status,start_ms,end_ms,ai_score,metadata')
+    .eq('project_id', project)
+    .eq('job_id', job)
+    .eq('user_id', user.id)
+    .order('rank', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
   const results: ResultClip[] = [];
   for (const clip of clips || []) {
     if (!clip.output_path || clip.status === 'failed') continue;
     const { data: signed } = await supabase.storage.from('rendered-clips').createSignedUrl(clip.output_path, 3600);
     if (!signed?.signedUrl) continue;
     const seconds = Math.max(1, Math.round((Number(clip.end_ms) - Number(clip.start_ms)) / 1000));
-    results.push({ id: clip.id, title: clip.title, score: Number(clip.ai_score ?? clip.score ?? 0), duration: `${seconds}s`, reason: clip.caption || 'Clip dipilih berdasarkan relevansi mode dan skor AI.', preview: signed.signedUrl, download: signed.signedUrl });
+    results.push({
+      id: clip.id,
+      title: clip.title,
+      score: Number(clip.ai_score ?? clip.score ?? 0),
+      duration: `${seconds}s`,
+      reason: clip.caption || 'Clip dipilih berdasarkan relevansi mode dan skor AI.',
+      preview: signed.signedUrl,
+      download: signed.signedUrl,
+    });
   }
-  const { data: jobRow } = job ? await supabase.from('jobs').select('status,engine_status,error_details').eq('id', job).eq('project_id', project).eq('user_id', user.id).maybeSingle() : { data: null };
-  const processing = results.length === 0 && !!jobRow && ['queued','processing'].includes(String(jobRow.status));
-  return <ResultsView clips={results} processing={processing} />;
+
+  const status = String(jobRow.status ?? '');
+  const engineStatus = String(jobRow.engine_status ?? '');
+  const failed = status === 'failed' || engineStatus === 'FAILED';
+  const processing = results.length === 0 && !failed && ['queued','processing'].includes(status);
+
+  return <main className="results-shell">
+    {processing || failed ? <ResultsStatus
+      projectId={project}
+      jobId={job}
+      initialStatus={status}
+      initialEngineStatus={engineStatus}
+      initialError={jobRow.error_details?.message ?? null}
+    /> : null}
+    {results.length > 0 ? <ResultsView clips={results} /> : null}
+    {!processing && !failed && results.length === 0 ? <ResultsView clips={[]} /> : null}
+  </main>;
 }
