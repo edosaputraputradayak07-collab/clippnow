@@ -13,7 +13,7 @@ export type WorkerSource = { path: string; durationMs?: number };
 export type WorkerTranscript = unknown;
 export type WorkerSegment = { id: string; startMs: number; endMs: number; text: string; words: number };
 export type WorkerCandidate = { segmentId: string; score: number; reasons: string[]; startMs: number; endMs: number; text: string };
-export type WorkerOutput = { segmentId: string; title: string; caption: string; hook: string; startMs: number; endMs: number };
+export type WorkerOutput = { segmentId: string; title: string; caption: string; hook: string; startMs?: number; endMs?: number };
 export type WorkerRendered = { outputPath: string };
 export type WorkerRenderContext = { jobId: string; userId?: string; rank: number };
 
