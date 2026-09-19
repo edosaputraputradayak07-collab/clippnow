@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VidClipMoney — AI Content Engine',
-  description: 'Ubah satu video menjadi banyak konten dengan AI.',
+  title: 'VidClipMoney — 1 Video → Banyak Konten → Banyak Peluang',
+  description: 'AI Content Engine untuk mengubah satu video menjadi banyak konten siap pakai.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
