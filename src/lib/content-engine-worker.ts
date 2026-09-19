@@ -3,6 +3,7 @@ import type { ContentMode, JobStatus } from './types/core';
 export type WorkerJob = {
   id: string;
   projectId: string;
+  userId: string;
   leaseId: string;
   attempts: number;
   mode: ContentMode;
@@ -67,7 +68,7 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
     const rendered: Array<{ output: WorkerOutput; rendered: WorkerRendered; rank: number }> = [];
     for (let index = 0; index < outputs.length; index += 1) {
       const item = outputs[index];
-      const result = await deps.render(item, source, job.mode, { jobId: job.id, userId: (job as WorkerJob & { userId?: string }).userId, rank: index + 1 });
+      const result = await deps.render(item, source, job.mode, { jobId: job.id, userId: job.userId, rank: index + 1 });
       rendered.push({ output: item, rendered: result, rank: index + 1 });
     }
     await transition(deps, job, 'GENERATING', 'RENDERING', 90);
