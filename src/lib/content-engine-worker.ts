@@ -72,8 +72,6 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
       const result = await deps.render(item, source, job.mode, { jobId: job.id, userId: job.userId, rank: index + 1 });
       rendered.push({ output: item, rendered: result, rank: index + 1 });
     }
-    await transition(deps, job, 'GENERATING', 'RENDERING', 90);
-
     for (const item of rendered) {
       await deps.persist(job, item.output, item.rendered, item.rank);
     }
