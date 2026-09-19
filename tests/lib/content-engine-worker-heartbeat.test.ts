@@ -4,15 +4,15 @@ import { runContentEngineJob, type ContentEngineWorkerDeps } from '../../src/lib
 describe('content engine worker heartbeat integration', () => {
   it('renews the lease while a long pipeline operation is running', async () => {
     vi.useFakeTimers();
-    let release!: () => void;
+    const releases: Array<() => void> = [];
     const render = vi.fn().mockImplementation(
-      () => new Promise((resolve) => { release = () => resolve({ outputPath: 'clip.mp4' }); }),
+      () => new Promise((resolve) => { releases.push(() => resolve({ outputPath: 'clip.mp4' })); }),
     );
     const renew = vi.fn().mockResolvedValue(Date.now() + 300000);
 
     const deps: ContentEngineWorkerDeps = {
       claim: vi.fn().mockResolvedValue({
-        id:'j1', projectId:'p1', leaseId:'l1', attempts:1, mode:'affiliate', inputPath:'source.mp4',
+        id:'j1', projectId:'p1', userId:'u1', leaseId:'l1', attempts:1, mode:'affiliate', inputPath:'source.mp4',
       }),
       renew,
       stage: vi.fn().mockResolvedValue(undefined),
@@ -37,9 +37,7 @@ describe('content engine worker heartbeat integration', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(renew).toHaveBeenCalledWith('j1', 'l1');
 
-    release();
-    release();
-    release();
+    releases.forEach((release) => release());
     await expect(running).resolves.toBe('COMPLETED');
     vi.useRealTimers();
   });
