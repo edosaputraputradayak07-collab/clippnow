@@ -32,7 +32,7 @@ export function createSupabaseClipPersister(createClient: SupabaseFactory) {
       title: output.title,
       caption: output.caption,
       hook: output.hook,
-      ai_score: null,
+      ai_score: output.score ?? null,
       metadata: { segment_id: output.segmentId },
     }).select?.().single();
 
