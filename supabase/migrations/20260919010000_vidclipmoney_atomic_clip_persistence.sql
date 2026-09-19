@@ -14,7 +14,7 @@ create or replace function public.persist_rendered_clip(
   p_storage_path text,
   p_duration_ms bigint
 )
-returns uuid
+returns table (clip_id uuid, asset_id uuid)
 language plpgsql
 security definer
 set search_path = public
@@ -59,11 +59,11 @@ end;
 $$;
 
 revoke all on function public.persist_rendered_clip(
-  uuid, uuid, uuid, text, integer, bigint, bigint, text, text, text,
+  uuid, uuid, uuid, text, smallint, bigint, bigint, text, text, text,
   numeric, uuid, text, bigint
 ) from public, anon, authenticated;
 
 grant execute on function public.persist_rendered_clip(
-  uuid, uuid, uuid, text, integer, bigint, bigint, text, text, text,
+  uuid, uuid, uuid, text, smallint, bigint, bigint, text, text, text,
   numeric, uuid, text, bigint
 ) to service_role;
