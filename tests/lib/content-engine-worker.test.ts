@@ -62,6 +62,25 @@ describe('content engine worker orchestration', () => {
     expect(deps.persist).not.toHaveBeenCalled();
   });
 
+  it('still marks a job failed when credit release itself fails', async () => {
+    const deps: ContentEngineWorkerDeps = {
+      claim: vi.fn().mockResolvedValue({ id:'j3', projectId:'p3', userId:'u3', leaseId:'lease-3', attempts:1, mode:'seller', inputPath:'source.mp4' }),
+      stage: vi.fn().mockResolvedValue(undefined),
+      fail: vi.fn().mockResolvedValue(undefined),
+      loadSource: vi.fn().mockRejectedValue(new Error('SOURCE_FAILED')),
+      transcribe: vi.fn(),
+      segment: vi.fn(),
+      score: vi.fn(),
+      generate: vi.fn(),
+      render: vi.fn(),
+      persist: vi.fn(),
+      consumeCredits: vi.fn(),
+      releaseCredits: vi.fn().mockRejectedValue(new Error('RELEASE_FAILED')),
+    };
+    await expect(runContentEngineJob(deps)).resolves.toBe('FAILED');
+    expect(deps.fail).toHaveBeenCalledWith('j3', 'lease-3', expect.stringContaining('SOURCE_FAILED'));
+  });
+
   it('does nothing when the queue is empty', async () => {
     const deps = { claim: vi.fn().mockResolvedValue(null) } as unknown as ContentEngineWorkerDeps;
     await expect(runContentEngineJob(deps)).resolves.toBe('IDLE');
