@@ -1,9 +1,9 @@
 import type { ContentMode } from './types/core';
 import type { RenderProvider } from './render-plan';
 import { buildRenderPlan } from './render-plan';
-import type { WorkerOutput, WorkerRendered, WorkerSource } from './content-engine-worker';
+import type { WorkerOutput, WorkerRendered, WorkerSource, WorkerRenderContext } from './content-engine-worker';
 
-type RenderContext = { jobId: string; rank: number; startMs?: number; endMs?: number; userId?: string };
+type RenderContext = WorkerRenderContext;
 
 function safePathPart(value: string): string {
   const normalized = value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
@@ -18,8 +18,8 @@ export function createWorkerRenderer(provider: RenderProvider) {
     _mode: ContentMode,
     context: RenderContext,
   ): Promise<WorkerRendered> => {
-    const startMs = context.startMs ?? 0;
-    const endMs = context.endMs ?? Math.min(source.durationMs ?? 60_000, startMs + 60_000);
+    const startMs = output.startMs;
+    const endMs = output.endMs;
     if (endMs <= startMs) throw new Error('RENDER_TIMING_INVALID');
 
     const owner = safePathPart(context.userId ?? 'worker');
