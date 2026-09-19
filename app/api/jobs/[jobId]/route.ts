@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '../../../../../src/lib/auth';
+import { getCurrentUser } from '../../../../src/lib/auth';
 import { createSupabaseServerClient } from '../../../../../src/lib/supabase/server';
 
 type RouteContext = { params: Promise<{ jobId: string }> };
