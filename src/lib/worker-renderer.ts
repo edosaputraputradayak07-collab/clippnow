@@ -23,7 +23,7 @@ export function createWorkerRenderer(provider: RenderProvider) {
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error('RENDER_TIMING_REQUIRED');
     if (endMs <= startMs) throw new Error('RENDER_TIMING_INVALID');
 
-    const owner = safePathPart(context.userId ?? 'worker');
+    const owner = safePathPart(context.userId);
     const jobId = safePathPart(context.jobId);
     if (!Number.isInteger(context.rank) || context.rank < 1 || context.rank > 5) {
       throw new Error('RENDER_RANK_INVALID');
