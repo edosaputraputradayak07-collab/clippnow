@@ -7,9 +7,10 @@ describe('clip persistence', () => {
       data: { id:'clip-1' }, error:null,
     });
     const insertAsset = vi.fn().mockResolvedValue({ data:{ id:'asset-1' }, error:null });
+    const insertClipCall = vi.fn(() => ({ select: vi.fn(() => ({ single: insertClip })) }));
     const client = {
       from: vi.fn((table:string) => table === 'clips'
-        ? { insert: vi.fn(() => ({ select: vi.fn(() => ({ single: insertClip })) })) }
+        ? { insert: insertClipCall }
         : { insert: insertAsset }),
     };
     const persist = createSupabaseClipPersister(() => client as any);
@@ -19,6 +20,7 @@ describe('clip persistence', () => {
       { outputPath:'user-1/job-1/clip-1.mp4' },
       1,
     )).resolves.toBeUndefined();
+    expect(insertClipCall).toHaveBeenCalledWith(expect.objectContaining({ ai_score:91.25 }));
     expect(insertAsset).toHaveBeenCalledWith(expect.objectContaining({
       clip_id:'clip-1', project_id:'project-1', user_id:'user-1', kind:'video',
       storage_path:'user-1/job-1/clip-1.mp4', mime_type:'video/mp4',
