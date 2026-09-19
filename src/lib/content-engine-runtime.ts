@@ -44,5 +44,7 @@ function toWorkerOutput(item: GeneratedContent) {
     title: item.title,
     caption: item.caption,
     hook: item.hook,
+    startMs: item.startMs,
+    endMs: item.endMs,
   };
 }
