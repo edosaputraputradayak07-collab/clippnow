@@ -20,6 +20,7 @@ export function createWorkerRenderer(provider: RenderProvider) {
   ): Promise<WorkerRendered> => {
     const startMs = output.startMs;
     const endMs = output.endMs;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error('RENDER_TIMING_REQUIRED');
     if (endMs <= startMs) throw new Error('RENDER_TIMING_INVALID');
 
     const owner = safePathPart(context.userId ?? 'worker');
