@@ -61,6 +61,7 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
   const status = String(jobRow.status ?? '');
   const engineStatus = String(jobRow.engine_status ?? '');
   const failed = status === 'failed' || engineStatus === 'FAILED';
+  const errorDetails = jobRow.error_details as { message?: string } | null;
   const processing = results.length === 0 && !failed && ['queued','processing'].includes(status);
 
   return <main className="results-shell">
@@ -69,7 +70,7 @@ export default async function ResultsPage({ searchParams }: { searchParams: Prom
       jobId={job}
       initialStatus={status}
       initialEngineStatus={engineStatus}
-      initialError={jobRow.error_details?.message ?? null}
+      initialError={errorDetails?.message ?? null}
     /> : null}
     {results.length > 0 ? <ResultsView clips={results} /> : null}
     {!processing && !failed && results.length === 0 ? <ResultsView clips={[]} /> : null}
