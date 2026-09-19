@@ -18,6 +18,8 @@ export type WorkerRendered = { outputPath: string };
 
 export type ContentEngineWorkerDeps = {
   claim: () => Promise<WorkerJob | null>;
+  renew?: (jobId: string, leaseId: string) => Promise<number>;
+  heartbeatIntervalMs?: number;
   stage: (jobId: string, from: JobStatus, to: JobStatus, leaseId: string, progress: number) => Promise<void>;
   fail: (jobId: string, leaseId: string, message: string) => Promise<void>;
   loadSource: (job: WorkerJob) => Promise<WorkerSource>;
@@ -44,7 +46,8 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
   if (!job) return 'IDLE';
 
   try {
-    const source = await deps.loadSource(job);
+    const execute = async () => {
+      const source = await deps.loadSource(job);
     await transition(deps, job, 'QUEUED', 'DOWNLOADING', 10);
 
     const transcript = await deps.transcribe(source);
@@ -74,7 +77,18 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
 
     await deps.consumeCredits(job);
     await transition(deps, job, 'RENDERING', 'COMPLETED', 100);
-    return 'COMPLETED';
+      return 'COMPLETED' as const;
+    };
+
+    if (deps.renew) {
+      const { withWorkerLeaseHeartbeat } = await import('./worker-heartbeat');
+      return await withWorkerLeaseHeartbeat(
+        execute(),
+        () => deps.renew!(job.id, job.leaseId),
+        { intervalMs: deps.heartbeatIntervalMs ?? 60_000 },
+      );
+    }
+    return await execute();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'WORKER_UNKNOWN_ERROR';
     await deps.releaseCredits(job);
