@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '../../../../../src/lib/auth';
+import { getCurrentUser } from '../../../../src/lib/auth';
 import { creditsForDuration } from '../../../../../src/lib/credits';
 import { createSupabaseServerClient } from '../../../../../src/lib/supabase/server';
 
