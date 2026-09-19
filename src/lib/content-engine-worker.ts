@@ -65,6 +65,7 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
     if (outputs.length < 3 || outputs.length > 5) throw new Error('OUTPUT_COUNT_INVALID');
     await transition(deps, job, 'SELECTING', 'GENERATING', 70);
 
+    await transition(deps, job, 'GENERATING', 'RENDERING', 80);
     const rendered: Array<{ output: WorkerOutput; rendered: WorkerRendered; rank: number }> = [];
     for (let index = 0; index < outputs.length; index += 1) {
       const item = outputs[index];
