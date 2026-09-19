@@ -37,15 +37,22 @@ begin
   end if;
 
   return query
-  update public.jobs j
-     set engine_status = p_to_status,
-         status = case when p_to_status = 'COMPLETED' then 'completed' else 'processing' end,
-         lease_id = case when p_to_status = 'COMPLETED' then null else j.lease_id end,
-         leased_until = case when p_to_status = 'COMPLETED' then null else j.leased_until end
-   where j.id = p_job_id
-     and j.lease_id = p_lease_id
-     and j.engine_status = p_from_status
-     and j.leased_until > now()
+  with updated_job as (
+    update public.jobs j
+       set engine_status = p_to_status,
+           status = case when p_to_status = 'COMPLETED' then 'completed' else 'processing' end,
+           lease_id = case when p_to_status = 'COMPLETED' then null else j.lease_id end,
+           leased_until = case when p_to_status = 'COMPLETED' then null else j.leased_until end
+     where j.id = p_job_id
+       and j.lease_id = p_lease_id
+       and j.engine_status = p_from_status
+       and j.leased_until > now()
+     returning j.project_id
+  )
+  update public.projects p
+     set status = case when p_to_status = 'COMPLETED' then 'completed' else 'processing' end
+    from updated_job u
+   where p.id = u.project_id
   returning true;
 end;
 $$;
@@ -66,15 +73,22 @@ begin
   end if;
 
   return query
-  update public.jobs j
-     set engine_status = 'FAILED',
-         status = 'failed',
-         error_details = p_error,
-         lease_id = null,
-         leased_until = null
-   where j.id = p_job_id
-     and j.lease_id = p_lease_id
-     and j.engine_status <> 'COMPLETED'
+  with updated_job as (
+    update public.jobs j
+       set engine_status = 'FAILED',
+           status = 'failed',
+           error_details = p_error,
+           lease_id = null,
+           leased_until = null
+     where j.id = p_job_id
+       and j.lease_id = p_lease_id
+       and j.engine_status <> 'COMPLETED'
+     returning j.project_id
+  )
+  update public.projects p
+     set status = 'failed'
+    from updated_job u
+   where p.id = u.project_id
   returning true;
 end;
 $$;
