@@ -104,3 +104,28 @@ export async function failContentEngineJob(
     throw new Error('WORKER_FAILURE_OWNERSHIP_LOST');
   }
 }
+export async function renewContentEngineLease(
+  jobId: string,
+  leaseId: string,
+  leaseMs = DEFAULT_WORKER_LEASE_MS,
+): Promise<number> {
+  if (!jobId.trim() || !leaseId.trim()) throw new Error('WORKER_LEASE_INPUT_INVALID');
+  if (!Number.isInteger(leaseMs) || leaseMs <= 0 || leaseMs > 3600000) {
+    throw new Error('WORKER_LEASE_INVALID');
+  }
+
+  const { data, error } = await createSupabaseAdminClient().rpc('renew_content_engine_lease', {
+    p_job_id: jobId,
+    p_lease_id: leaseId,
+    p_lease_ms: leaseMs,
+  });
+  if (error) throw new Error(`WORKER_LEASE_RENEW_FAILED:${error.message}`);
+
+  if (!Array.isArray(data) || data.length !== 1 || data[0]?.renewed !== true) {
+    throw new Error('WORKER_LEASE_OWNERSHIP_LOST');
+  }
+
+  const leasedUntil = Date.parse(data[0].leased_until);
+  if (!Number.isFinite(leasedUntil)) throw new Error('WORKER_LEASE_RESPONSE_INVALID');
+  return leasedUntil;
+}
