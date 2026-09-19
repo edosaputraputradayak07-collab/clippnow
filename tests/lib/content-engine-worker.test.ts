@@ -2,17 +2,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { runContentEngineJob, type ContentEngineWorkerDeps } from '../../src/lib/content-engine-worker';
 
 describe('content engine worker orchestration', () => {
-  it('claims, advances every stage, persists outputs, then consumes credits', async () => {
+  it('claims, advances every stage, passes ownership to render, persists outputs, then consumes credits', async () => {
     const events: string[] = [];
     const deps: ContentEngineWorkerDeps = {
-      claim: vi.fn().mockResolvedValue({ id:'j1', projectId:'p1', leaseId:'lease-1', attempts:1, mode:'affiliate', inputPath:'u/p/source.mp4' }),
+      claim: vi.fn().mockResolvedValue({ id:'j1', projectId:'p1', userId:'u1', leaseId:'lease-1', attempts:1, mode:'affiliate', inputPath:'u/p/source.mp4' }),
       stage: vi.fn(async (_id, from, to) => { events.push(`${from}->${to}`); }),
       fail: vi.fn(),
       loadSource: vi.fn().mockResolvedValue({ path:'u/p/source.mp4' }),
       transcribe: vi.fn().mockResolvedValue({ words: [], utterances: [] }),
       segment: vi.fn().mockReturnValue([{ id:'s1', startMs:0, endMs:10000, text:'hook', words:1 }]),
       score: vi.fn().mockReturnValue([{ segmentId:'s1', score:90, reasons:['hook'], startMs:0, endMs:10000, text:'hook' }]),
-      generate: vi.fn().mockResolvedValue([{ segmentId:'s1', title:'Hook', caption:'hook', hook:'hook' }, { segmentId:'s1', title:'CTA', caption:'cta', hook:'cta' }, { segmentId:'s1', title:'Value', caption:'value', hook:'value' }]),
+      generate: vi.fn().mockResolvedValue([
+        { segmentId:'s1', title:'Hook', caption:'hook', hook:'hook', startMs:0, endMs:10000 },
+        { segmentId:'s1', title:'CTA', caption:'cta', hook:'cta', startMs:1000, endMs:11000 },
+        { segmentId:'s1', title:'Value', caption:'value', hook:'value', startMs:2000, endMs:12000 },
+      ]),
       render: vi.fn()
         .mockResolvedValueOnce({ outputPath:'clips/1.mp4' })
         .mockResolvedValueOnce({ outputPath:'clips/2.mp4' })
@@ -22,6 +26,7 @@ describe('content engine worker orchestration', () => {
       releaseCredits: vi.fn(async () => {}),
     };
     await expect(runContentEngineJob(deps)).resolves.toBe('COMPLETED');
+    expect(deps.render).toHaveBeenNthCalledWith(1, expect.anything(), expect.anything(), 'affiliate', { jobId:'j1', userId:'u1', rank:1 });
     expect(deps.persist).toHaveBeenCalledTimes(3);
     expect(deps.consumeCredits).toHaveBeenCalledOnce();
     expect(deps.fail).not.toHaveBeenCalled();
@@ -33,7 +38,7 @@ describe('content engine worker orchestration', () => {
 
   it('releases reserved credits and fails the job when rendering fails', async () => {
     const deps: ContentEngineWorkerDeps = {
-      claim: vi.fn().mockResolvedValue({ id:'j2', projectId:'p2', leaseId:'lease-2', attempts:1, mode:'podcast', inputPath:'u/p/source.mp4' }),
+      claim: vi.fn().mockResolvedValue({ id:'j2', projectId:'p2', userId:'u2', leaseId:'lease-2', attempts:1, mode:'podcast', inputPath:'u/p/source.mp4' }),
       stage: vi.fn(async () => {}),
       fail: vi.fn(async () => {}),
       loadSource: vi.fn().mockResolvedValue({ path:'u/p/source.mp4' }),
@@ -41,7 +46,9 @@ describe('content engine worker orchestration', () => {
       segment: vi.fn().mockReturnValue([{ id:'s1', startMs:0, endMs:10000, text:'hook', words:1 }]),
       score: vi.fn().mockReturnValue([{ segmentId:'s1', score:90, reasons:['hook'], startMs:0, endMs:10000, text:'hook' }]),
       generate: vi.fn().mockResolvedValue([
-        { segmentId:'s1', title:'A', caption:'a', hook:'a' }, { segmentId:'s1', title:'B', caption:'b', hook:'b' }, { segmentId:'s1', title:'C', caption:'c', hook:'c' }
+        { segmentId:'s1', title:'A', caption:'a', hook:'a', startMs:0, endMs:10000 },
+        { segmentId:'s1', title:'B', caption:'b', hook:'b', startMs:1000, endMs:11000 },
+        { segmentId:'s1', title:'C', caption:'c', hook:'c', startMs:2000, endMs:12000 },
       ]),
       render: vi.fn().mockRejectedValue(new Error('renderer unavailable')),
       persist: vi.fn(),
