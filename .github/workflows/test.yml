@@ -28,3 +28,6 @@ jobs:
         run: npx tsc --noEmit
       - name: Production build
         run: npm run build
+
+      - name: Verify worker retry/status routes compile
+        run: test -f app/api/jobs/'[jobId]'/route.ts && test -f app/api/jobs/'[jobId]'/retry/route.ts
