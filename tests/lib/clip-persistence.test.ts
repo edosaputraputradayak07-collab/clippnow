@@ -10,7 +10,7 @@ describe('clip persistence', () => {
       { segmentId:'seg-1', title:'Judul', caption:'Caption', hook:'Hook', score:91.25, startMs:1000, endMs:31000 },
       { outputPath:'user-1/job-1/clip-1.mp4' }, 1,
     )).resolves.toBeUndefined();
-    expect(rpc).toHaveBeenCalledWith('persist_clip_with_asset', expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith('persist_rendered_clip', expect.objectContaining({
       p_project_id:'project-1', p_user_id:'user-1', p_job_id:'job-1',
       p_rank:1, p_ai_score:91.25, p_storage_path:'user-1/job-1/clip-1.mp4',
       p_duration_ms:30000,
