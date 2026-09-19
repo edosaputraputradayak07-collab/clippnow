@@ -3,8 +3,7 @@ import { createHttpLLMProvider } from './llm';
 import { createHttpRenderProvider } from './render-provider';
 import { createSupabaseClipPersister } from './clip-persistence';
 import { createWorkerCreditActions } from './worker-credits';
-import { createContentEngineDependencies } from './content-engine-runtime';
-import type { ContentEngineWorkerDeps } from './content-engine-worker';
+import { createContentEngineDependencies } from './content-engine-runtime';import type { ContentEngineWorkerDeps } from './content-engine-worker';
 import type { LLMProvider } from './content-pack';
 import type { RenderProvider } from './render-plan';
 
@@ -26,11 +25,11 @@ export function createProductionContentEngineDependencies(
   const renderProvider = input.renderProvider ?? createHttpRenderProvider(env);
 
   return createContentEngineDependencies({
-    claim: input.claim ?? undefined as never,
-    stage: input.stage ?? undefined as never,
-    fail: input.fail ?? undefined as never,
-    loadSource: input.loadSource ?? undefined as never,
-    transcribe: input.transcribe ?? undefined as never,
+    ...(input.claim ? { claim: input.claim } : {}),
+    ...(input.stage ? { stage: input.stage } : {}),
+    ...(input.fail ? { fail: input.fail } : {}),
+    ...(input.loadSource ? { loadSource: input.loadSource } : {}),
+    ...(input.transcribe ? { transcribe: input.transcribe } : {}),
     render: async (output, source, mode, context) => {
       if (!context) throw new Error('RENDER_CONTEXT_REQUIRED');
       return createWorkerRenderer(renderProvider)(output, source, mode, context);
