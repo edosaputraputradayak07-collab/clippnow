@@ -16,7 +16,7 @@ export type WorkerSegment = { id: string; startMs: number; endMs: number; text: 
 export type WorkerCandidate = { segmentId: string; score: number; reasons: string[]; startMs: number; endMs: number; text: string };
 export type WorkerOutput = { segmentId: string; title: string; caption: string; hook: string; score?: number; startMs?: number; endMs?: number };
 export type WorkerRendered = { outputPath: string };
-export type WorkerRenderContext = { jobId: string; userId?: string; rank: number };
+export type WorkerRenderContext = { jobId: string; userId: string; rank: number };
 
 export type ContentEngineWorkerDeps = {
   claim: () => Promise<WorkerJob | null>;
