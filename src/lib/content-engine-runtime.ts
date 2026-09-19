@@ -8,7 +8,7 @@ import { createSupabaseSourceLoader } from './source-loader';
 import { createHttpTranscriptionProvider } from './stt';
 import { claimNextContentEngineJob, updateContentEngineStage, failContentEngineJob, renewContentEngineLease } from './worker-db';
 
-type RuntimeInput = Partial<Pick<ContentEngineWorkerDeps, 'claim' | 'stage' | 'fail' | 'loadSource' | 'transcribe'>> &
+type RuntimeInput = Partial<Pick<ContentEngineWorkerDeps, 'claim' | 'stage' | 'fail' | 'loadSource' | 'transcribe' | 'renew'>> &
   Pick<ContentEngineWorkerDeps, 'render' | 'persist' | 'consumeCredits' | 'releaseCredits'> & {
   contentPackProvider: LLMProvider;
   env?: Record<string, string | undefined>;
@@ -23,7 +23,7 @@ export function createContentEngineDependencies(input: RuntimeInput): ContentEng
   return {
     ...input,
     heartbeatIntervalMs: input.heartbeatIntervalMs ?? 60_000,
-    renew: renewContentEngineLease,
+    renew: input.renew ?? renewContentEngineLease,
     claim: input.claim ?? (() => claimNextContentEngineJob()),
     stage: input.stage ?? updateContentEngineStage,
     fail: input.fail ?? failContentEngineJob,
