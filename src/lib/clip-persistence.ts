@@ -17,7 +17,7 @@ export function createSupabaseClipPersister(createClient: SupabaseFactory) {
     }
 
     const durationMs = Math.round(output.endMs - output.startMs);
-    const { data, error } = await createClient().rpc('persist_clip_with_asset', {
+    const { data, error } = await createClient().rpc('persist_rendered_clip', {
       p_project_id: job.projectId,
       p_user_id: job.userId,
       p_job_id: job.id,
