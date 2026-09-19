@@ -93,8 +93,18 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
     return await execute();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'WORKER_UNKNOWN_ERROR';
-    await deps.releaseCredits(job);
-    await deps.fail(job.id, job.leaseId, message);
+    let failureMessage = message;
+    try {
+      await deps.releaseCredits(job);
+    } catch (releaseError) {
+      const releaseMessage = releaseError instanceof Error ? releaseError.message : 'WORKER_CREDIT_RELEASE_FAILED';
+      failureMessage = `${message}; ${releaseMessage}`;
+    }
+    try {
+      await deps.fail(job.id, job.leaseId, failureMessage);
+    } catch {
+      return 'FAILED';
+    }
     return 'FAILED';
   }
 }
