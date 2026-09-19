@@ -8,7 +8,8 @@ import { createSupabaseSourceLoader } from './source-loader';
 import { createHttpTranscriptionProvider } from './stt';
 import { claimNextContentEngineJob, updateContentEngineStage, failContentEngineJob, renewContentEngineLease } from './worker-db';
 
-type RuntimeInput = Omit<ContentEngineWorkerDeps, 'segment' | 'score' | 'generate' | 'renew'> & {
+type RuntimeInput = Partial<Pick<ContentEngineWorkerDeps, 'claim' | 'stage' | 'fail' | 'loadSource' | 'transcribe'>> &
+  Pick<ContentEngineWorkerDeps, 'render' | 'persist' | 'consumeCredits' | 'releaseCredits'> & {
   contentPackProvider: LLMProvider;
   env?: Record<string, string | undefined>;
   heartbeatIntervalMs?: number;
