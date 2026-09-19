@@ -15,6 +15,7 @@ export type WorkerSegment = { id: string; startMs: number; endMs: number; text: 
 export type WorkerCandidate = { segmentId: string; score: number; reasons: string[]; startMs: number; endMs: number; text: string };
 export type WorkerOutput = { segmentId: string; title: string; caption: string; hook: string; startMs: number; endMs: number };
 export type WorkerRendered = { outputPath: string };
+export type WorkerRenderContext = { jobId: string; userId?: string; rank: number };
 
 export type ContentEngineWorkerDeps = {
   claim: () => Promise<WorkerJob | null>;
@@ -27,7 +28,7 @@ export type ContentEngineWorkerDeps = {
   segment: (transcript: WorkerTranscript) => WorkerSegment[];
   score: (segments: WorkerSegment[], mode: ContentMode) => WorkerCandidate[];
   generate: (candidates: WorkerCandidate[], transcript: WorkerTranscript, mode: ContentMode) => Promise<WorkerOutput[]>;
-  render: (output: WorkerOutput, source: WorkerSource, mode: ContentMode) => Promise<WorkerRendered>;
+  render: (output: WorkerOutput, source: WorkerSource, mode: ContentMode, context?: WorkerRenderContext) => Promise<WorkerRendered>;
   persist: (job: WorkerJob, output: WorkerOutput, rendered: WorkerRendered, rank: number) => Promise<void>;
   consumeCredits: (job: WorkerJob) => Promise<void>;
   releaseCredits: (job: WorkerJob) => Promise<void>;
@@ -66,7 +67,7 @@ export async function runContentEngineJob(deps: ContentEngineWorkerDeps): Promis
     const rendered: Array<{ output: WorkerOutput; rendered: WorkerRendered; rank: number }> = [];
     for (let index = 0; index < outputs.length; index += 1) {
       const item = outputs[index];
-      const result = await deps.render(item, source, job.mode);
+      const result = await deps.render(item, source, job.mode, { jobId: job.id, userId: (job as WorkerJob & { userId?: string }).userId, rank: index + 1 });
       rendered.push({ output: item, rendered: result, rank: index + 1 });
     }
     await transition(deps, job, 'GENERATING', 'RENDERING', 90);
